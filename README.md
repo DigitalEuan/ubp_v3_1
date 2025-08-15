@@ -10,7 +10,7 @@ UBP is free to use with attribution; specific inventions like the HexDictionary 
 
 ## Status
 
-**Operational**
+**currently full of bugs to sort out moving from one environment to this**
 
 ### Project Summary
 
