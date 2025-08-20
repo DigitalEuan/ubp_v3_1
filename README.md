@@ -10,17 +10,9 @@ This is the more advanced UBP system, the file UBP_Framework_v3_1_2.ipynb is a l
 
 [https://notebooklm.google.com/notebook/ac1cd875-1836-4522-9fa0-c2a763d79fff](https://notebooklm.google.com/notebook/ac1cd875-1836-4522-9fa0-c2a763d79fff)
 
+[https://x.com/DigitalEuan](https://x.com/DigitalEuan)
+
 UBP is free to use with attribution; specific inventions like the HexDictionary remain copyright.
-
------
-
-## Status
-
-**currently full of bugs to sort out moving from one environment to this**
-
-### Project Summary
-
-This report details the successful completion and validation of the UBP Framework v3.1. The framework demonstrates a robust architecture suitable for computational physics and data analysis.
 
 -----
 
@@ -55,54 +47,6 @@ The framework integrates physics across seven distinct realms (automatically sel
   - **Cosmological Realm**: Uses H3 Icosahedral GLR at 800 nm.
   - **Nuclear Realm**: Utilizes E8-to-G2 symmetry from $10^{16}$ to $10^{20}$ Hz.
   - **Optical Realm**: Incorporates a photonic crystal at 600 nm.
-
------
-
-## Directory Structure
-
-```
-UBP_Framework_v3.1/
-├── src/
-│   ├── core.py
-│   ├── bitfield_v31.py
-│   ├── hex_dictionary.py
-│   ├── toggle_algebra.py
-│   ├── glr_framework.py
-│   ├── rgdl_engine.py
-│   ├── enhanced_crv_system.py
-│   ├── htr_engine.py
-│   ├── bittime_mechanics.py
-│   ├── rune_protocol.py
-│   ├── enhanced_error_correction.py
-│   ├── realms.py
-│   ├── nuclear_realm.py
-│   ├── optical_realm.py
-│   ├── realm_selector.py
-│   └── ubp_framework_v31.py
-├── config/
-│   ├── system_constants.py
-│   ├── crv_database.py
-│   ├── hardware_profiles.py
-│   ├── ubp_config.py
-│   └── ubp_reference_sheet.py
-├── tests/
-│   └── test_ubp_v31_validation.py
-├── examples/
-│   ├── UBP_Test_Drive_Material_Research_Quick.py
-│   ├── UBP_Test_Drive_Periodic_Table_Mapping.py
-│   ├── UBP_Test_Drive_HexDictionary_Element_Storage.py
-│   └── UBP_Test_Drive_Complete_Periodic_Table_118_Elements.py
-├── docs/
-│   ├── UBP_Framework_v3_Complete_Documentation.md
-│   └── UBP_Framework_v3_Technical_Manual.md
-├── results/
-│   ├── ubp_complete_periodic_table_118_elements_*.png
-│   ├── ubp_complete_periodic_table_results_*.json
-│   ├── ubp_cmb_analysis_*.png
-│   ├── ubp_toggle_power_schematics_*.png
-│   └── ubp_hexdictionary_analysis_*.png
-└── README.md
-```
 
 -----
 
