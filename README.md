@@ -1,8 +1,12 @@
 # UBP Framework v3.1
 
 Euan Craig, New Zealand
+
 Date: August 15, 2025
-[https://independent.academia.edu/EuanCraig2](https://independent.academia.edu/EuanCraig2)
+
+[https://independent.academia.edu/EuanCraig2](https://independent.academia.edu/EuanCraig2) 
+
+[https://notebooklm.google.com/notebook/ac1cd875-1836-4522-9fa0-c2a763d79fff](https://notebooklm.google.com/notebook/ac1cd875-1836-4522-9fa0-c2a763d79fff)
 
 UBP is free to use with attribution; specific inventions like the HexDictionary remain copyright.
 
@@ -14,17 +18,7 @@ UBP is free to use with attribution; specific inventions like the HexDictionary 
 
 ### Project Summary
 
-This report details the successful completion and validation of the UBP Framework v3.1. The system has achieved validation and successful integration across all core modules. Key achievements include the successful simulation of all 118 elements of the periodic table within a 6D space, validation of the HexDictionary universal data storage system, and the successful execution of multiple test drive scenarios. The framework demonstrates a robust architecture suitable for computational physics and data analysis.
-
------
-
-## Key Achievements
-
-  - **Component Validation**: All six core components have been successfully validated.
-  - **Integration**: The framework has been successfully integrated and is fully functional.
-  - **Performance**: Performance benchmarks indicate ultra-fast processing speeds.
-  - **Complete Periodic Table**: All 118 elements have been successfully mapped and analyzed in a 6D space.
-  - **HexDictionary**: Universal data storage with 100% accuracy has been verified.
+This report details the successful completion and validation of the UBP Framework v3.1. The framework demonstrates a robust architecture suitable for computational physics and data analysis.
 
 -----
 
@@ -39,7 +33,7 @@ This report details the successful completion and validation of the UBP Framewor
   - **GLR Framework**: The advanced error correction system is active.
   - **RGDL Engine**: The resonance geometry system is fully operational.
 
-### Advanced Systems
+### Systems
 
   - **Enhanced CRV System**: Provides adaptive resonance selection.
   - **HTR Engine**: The harmonic toggle resonance system is active.
@@ -115,25 +109,6 @@ UBP_Framework_v3.1/
   - **HexDictionary**: A system for storing any data type.
   - **6D Spatial Mapping**: Provides a method for organizing elements.
   - **BitTab Encoding**: Uses a 24-bit universal element structure.
-  - **Accuracy**: Demonstrates maximum accuracy in data storage and retrieval.
-
------
-
-## Performance Metrics
-
-### Validation Results
-
-  - **Component Success**: 100%
-  - **Integration Success**: 100%
-  - **Performance Rating**: Excellent
-  - **Overall Status**: Operational
-
-### Speed Benchmarks
-
-  - **Element Storage**: 118 elements in 0.006 seconds
-  - **Retrieval Speed**: 0.00 ms average
-  - **Processing Rate**: $\>$2.3M operations/second
-  - **Memory Efficiency**: Optimal compression ratios achieved
 
 -----
 
@@ -156,9 +131,3 @@ json (built-in)
 time (built-in)
 dataclasses (built-in)
 ```
-
------
-
-## Conclusion
-
-The UBP Framework v3.1 is a fully validated and operational system. Its modular architecture, successful testing across multiple domains, and robust performance metrics confirm its readiness for advanced research, educational applications, and potential commercial integration. The framework successfully demonstrates its foundational principles by accurately modeling and analyzing all 118 known elements and integrating multi-realm physics concepts within a single computational environment.
