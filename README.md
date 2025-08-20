@@ -4,6 +4,8 @@ Euan Craig, New Zealand
 
 Date: August 15, 2025
 
+This is the more advanced UBP system, the file UBP_Framework_v3_1_2.ipynb is a less worked version.
+
 [https://independent.academia.edu/EuanCraig2](https://independent.academia.edu/EuanCraig2) 
 
 [https://notebooklm.google.com/notebook/ac1cd875-1836-4522-9fa0-c2a763d79fff](https://notebooklm.google.com/notebook/ac1cd875-1836-4522-9fa0-c2a763d79fff)
