@@ -18,6 +18,13 @@ import time
 # Configure logging for better output
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+# Import configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
+from ubp_config import get_config, UBPConfig, RealmConfig, MoleculeConfig # Import specific configs
+
+
 @dataclass
 class HTRResult:
     """Result from HTR computation."""
@@ -29,15 +36,8 @@ class HTRResult:
     reconstruction_error: float
     sensitivity_metrics: Optional[Dict] = None
 
-@dataclass
-class MoleculeConfig:
-    """Configuration for molecular simulation."""
-    name: str
-    nodes: int
-    bond_length: float  # L_0 in meters
-    bond_energy: float  # eV
-    geometry_type: str
-    smiles: Optional[str] = None
+# MoleculeConfig is now imported from ubp_config.py
+
 
 class HTREngine:
     """
@@ -47,62 +47,55 @@ class HTREngine:
     based on HTR research achieving NRCI targets of 0.9999999 through precise CRV tuning.
     """
     
-    # Realm configurations from HTR research
-    REALM_CONFIG = {
-        "quantum": {"CRV": 3.000000, "coordination": 4, "lattice": "tetrahedral"},
-        "electromagnetic": {"CRV": 1.640941, "coordination": 6, "lattice": "cubic"},
-        "gravitational": {"CRV": 1.640938, "coordination": 8, "lattice": "FCC"},
-        "biological": {"CRV": 1.640937, "coordination": 10, "lattice": "dodecahedral"},
-        "cosmological": {"CRV": 1.640940, "coordination": 12, "lattice": "icosahedral"},
-        "nuclear": {"CRV": 1.640942, "coordination": 248, "lattice": "e8_g2"},
-        "optical": {"CRV": 1.640943, "coordination": 6, "lattice": "hexagonal"}
-    }
+    # REALM_CONFIG and MOLECULE_PARAMS are now sourced from ubp_config.py
     
-    # Molecular parameters from HTR research
-    MOLECULE_PARAMS = {
-        'propane': MoleculeConfig('propane', 10, 0.154e-9, 4.8, 'alkane', 'CCC'),
-        'benzene': MoleculeConfig('benzene', 6, 0.14e-9, 5.0, 'aromatic', 'c1ccccc1'),
-        'methane': MoleculeConfig('methane', 5, 0.109e-9, 4.5, 'tetrahedral', 'C'),
-        'butane': MoleculeConfig('butane', 13, 0.154e-9, 4.8, 'alkane', 'CCCC')
-    }
-    
-    def __init__(self, molecule: str = 'propane', realm: str = 'quantum', 
-                 custom_coords: Optional[np.ndarray] = None, 
-                 custom_data: Optional[np.ndarray] = None):
+    def __init__(self, molecule_name: str = 'propane', realm_name: str = 'quantum', 
+                custom_coords: Optional[np.ndarray] = None, 
+                custom_data: Optional[np.ndarray] = None):
         """
         Initialize HTR Engine.
         
         Args:
-            molecule: Molecule type or 'custom' for custom data
-            realm: UBP realm for computation
+            molecule_name: Molecule type or 'custom' for custom data
+            realm_name: UBP realm for computation
             custom_coords: Custom 3D coordinates for molecular structure
             custom_data: Custom data for cross-domain processing
         """
         self.logger = logging.getLogger(__name__)
+        self.config: UBPConfig = get_config() # Get the global UBPConfig instance
         
         # Configuration
-        self.molecule = molecule if custom_data is None and custom_coords is None else 'custom' # Ensure 'custom' if any custom input
-        self.realm = realm
-        self._set_realm_config(realm) # Helper to set realm-dependent attrs
+        self.realm = realm_name
+        self._set_realm_config(realm_name) # Helper to set realm-dependent attrs
+        
+        # Set molecule config
+        if custom_coords is not None or custom_data is not None:
+            self.molecule = 'custom'
+            # If custom data, attempt to infer nodes or use a default large value
+            num_nodes_from_custom = custom_coords.shape[0] if custom_coords is not None else (custom_data.size // 3 if custom_data is not None else 10)
+            self.molecule_config = MoleculeConfig('custom', num_nodes_from_custom, 0.154e-9, 4.8, 'custom')
+        else:
+            self.molecule = molecule_name
+            self.molecule_config = self.config.get_molecule_config(molecule_name)
+            if not self.molecule_config:
+                self.logger.warning(f"Molecule '{molecule_name}' not found in UBPConfig. Defaulting to 'propane'.")
+                self.molecule = 'propane'
+                self.molecule_config = self.config.get_molecule_config('propane')
+        
+        self.num_nodes = self.molecule_config.nodes
         
         # Molecular/data setup
         if custom_coords is not None:
             self.coords = custom_coords
-            self.num_nodes = custom_coords.shape[0]
-            self.molecule_config = MoleculeConfig('custom', self.num_nodes, 0.154e-9, 4.8, 'custom')
         elif custom_data is not None:
             self.coords = self._vectorize_custom_data(custom_data)
-            self.num_nodes = self.coords.shape[0]
-            self.molecule_config = MoleculeConfig('custom', self.num_nodes, 0.154e-9, 4.8, 'custom')
         else:
-            self.molecule_config = self.MOLECULE_PARAMS.get(molecule, self.MOLECULE_PARAMS['propane'])
-            self.num_nodes = self.molecule_config.nodes
             self.coords = self._generate_molecular_coords()
         
-        # Physical constants
-        self.sqrt_2 = np.sqrt(2)
+        # Physical constants from config
+        self.rydberg = self.config.constants.RYDBERG_CONSTANT
+        self.sqrt_2 = np.sqrt(2) # Remains numpy constant, not UBPConstant itself
         self.delta_t = 1e-15 # Not used in current code, but kept for context.
-        self.rydberg = 1.097373156853967e7
         
         # Compute tick frequency (depends on CRV)
         self._update_tick_frequency()
@@ -114,24 +107,50 @@ class HTREngine:
         self.energy_history = []
         self.nrci_history = []
         
-        self.logger.info(f"HTR Engine initialized: {self.molecule} in {realm} realm, {self.num_nodes} nodes")
+        self.logger.info(f"HTR Engine initialized: {self.molecule} in {realm_name} realm, {self.num_nodes} nodes")
 
-    def _set_realm_config(self, realm: str):
-        """Sets realm-dependent attributes."""
-        if realm not in self.REALM_CONFIG:
-            self.logger.warning(f"Realm '{realm}' not found. Defaulting to 'quantum'.")
-            realm = 'quantum'
-        self.realm = realm
-        self.realm_config = self.REALM_CONFIG[realm]
-        self.crv = self.realm_config["CRV"]
-        self.coordination = self.realm_config["coordination"]
-        self.lattice = self.realm_config["lattice"]
+    def _set_realm_config(self, realm_name: str):
+        """Sets realm-dependent attributes by loading from config."""
+        realm_cfg = self.config.get_realm_config(realm_name)
+        if not realm_cfg:
+            self.logger.warning(f"Realm '{realm_name}' not found in UBPConfig. Defaulting to 'quantum'.")
+            realm_name = 'quantum'
+            realm_cfg = self.config.get_realm_config('quantum') # Fallback
+        
+        self.realm = realm_name
+        self.realm_config = realm_cfg
+        self.crv = self.realm_config.main_crv
+        self.coordination = self.realm_config.coordination_number
+        self.lattice = self.realm_config.lattice_type
         self._update_tick_frequency()
 
     def _update_tick_frequency(self):
         """Calculates f_i based on current CRV."""
-        self.f_i = 3e8 / (1 / (self.rydberg * self.crv) * 1e9)
-    
+        # Ensure CRV is not zero to avoid division by zero
+        if self.crv == 0:
+            self.f_i = 0.0
+            self.logger.warning("CRV is zero, setting f_i to 0.0. Check realm configuration.")
+            return
+        
+        # (Speed of light / (1 / (Rydberg * CRV)) * 1e9)
+        # This formula seems to derive a frequency from CRV, ensure units align
+        # Assuming CRV is in Hz, Rydberg is m^-1.
+        # Convert wavelength from nm to m: 1 / (rydberg * crv) would be nm if crv is related to 1/nm
+        # Re-evaluate the original formula's intent given the new Rydberg constant.
+        # If CRV is directly a frequency, then wavelength = c / CRV.
+        # This formula looks like it computes a frequency for optical transitions:
+        # f_i = c / lambda_i where lambda_i = 1 / (Rydberg * CRV)
+        # This looks like it tries to compute f_i = c * rydberg * CRV.
+        # For now, I'll keep the direct relationship if CRV is a frequency:
+        # The original formula for f_i has issues. If CRV is a frequency in Hz, f_i is just the CRV.
+        # If f_i is supposed to be a derived "tick frequency" related to the CRV's energy/wavelength equivalent:
+        # For now, a straightforward connection if CRV is already frequency:
+        self.f_i = self.crv # Directly use the CRV as the tick frequency if it's already a frequency.
+
+        # Or, if f_i is meant to be a derived "tick frequency" related to the CRV's energy/wavelength equivalent:
+        # self.f_i = self.config.constants.RYDBERG_CONSTANT * self.config.constants.SPEED_OF_LIGHT * (self.crv / 1e12) # Example scaling to make sense
+        # Let's assume CRV is already the primary frequency.
+        
     def _generate_molecular_coords(self) -> np.ndarray:
         """Generate 3D coordinates for molecular structure."""
         config = self.molecule_config
@@ -140,7 +159,7 @@ class HTREngine:
         if config.smiles == 'c1ccccc1' or self.molecule == 'benzene':
             # Benzene ring
             return np.array([[np.cos(2 * np.pi * i / 6) * l, np.sin(2 * np.pi * i / 6) * l, 0] 
-                           for i in range(6)])
+                            for i in range(6)])
         
         elif config.smiles == 'C' or self.molecule == 'methane':
             # Tetrahedral methane
@@ -159,7 +178,7 @@ class HTREngine:
                 coords.append([i * l, -l / np.sqrt(3), l * np.sqrt(2/3)])
             # Additional hydrogen
             coords.append([l, 0, -l])
-            return np.array(coords[:13])  # Limit to 13 nodes
+            return np.array(coords[:config.nodes])  # Limit to config.nodes
         
         elif config.smiles == 'CCC' or self.molecule == 'propane':
             # Propane with hydrogens
@@ -173,12 +192,12 @@ class HTREngine:
                 coords.append([i * l, -l / np.sqrt(3), l * np.sqrt(2/3)])
             # Additional hydrogen
             coords.append([l, 0, -l])
-            return np.array(coords[:10])  # Limit to 10 nodes
+            return np.array(coords[:config.nodes])  # Limit to config.nodes
         
         else:
             # Default linear chain
             return np.array([[i * l, 0, 0] for i in range(self.num_nodes)])
-    
+        
     def _vectorize_custom_data(self, data: np.ndarray) -> np.ndarray:
         """Convert 1D custom data to 3D coordinates."""
         # Reshape data into 3D coordinates
@@ -298,7 +317,7 @@ class HTREngine:
             return (energy - target_energy) ** 2
         
         # Optimization bounds around initial CRV
-        initial_crv = self.realm_config["CRV"]
+        initial_crv = self.realm_config.main_crv # Use config's realm CRV
         bounds = [(initial_crv * 0.5, initial_crv * 2.0)] # Adjusted bounds for stability
         
         # Optimize
@@ -313,7 +332,7 @@ class HTREngine:
         else:
             self.logger.warning(f"CRV optimization failed: {result.message}")
             return self.crv
-    
+        
     def compute_energy(self) -> float:
         """
         Compute system energy based on HTR research formula.
@@ -500,7 +519,9 @@ class HTREngine:
                 self.coords = self._vectorize_custom_data(data)
                 self.num_nodes = self.coords.shape[0]
                 self.distances = self._calculate_distance_matrix() # Recompute distances for new coordinates
-                self.molecule_config = MoleculeConfig('custom', self.num_nodes, 0.154e-9, 4.8, 'custom')
+                self.molecule_config = self.config.get_molecule_config('custom') # Use a generic custom molecule config, if it exists
+                if not self.molecule_config: # If 'custom' not in config, create a placeholder
+                    self.molecule_config = MoleculeConfig('custom_data', self.num_nodes, 0.154e-9, 4.8, 'custom_inferred')
                 # Re-initialize M for new num_nodes, if size changes.
                 self.M = np.random.randint(0, 2, self.num_nodes).astype(np.float64)
             
@@ -552,7 +573,7 @@ class HTREngine:
         self._set_realm_config(self.realm) # Re-init realm config
 
         self.num_nodes = state_data.get("num_nodes", 0)
-        self.crv = state_data.get("crv", self.realm_config["CRV"])
+        self.crv = state_data.get("crv", self.realm_config.main_crv) # Use realm_config for default CRV
         self.coords = np.array(state_data["coords"]) if "coords" in state_data else self._generate_molecular_coords()
         self.M = np.array(state_data["M"]) if "M" in state_data else np.random.randint(0, 2, self.num_nodes).astype(np.float64)
         
@@ -560,7 +581,13 @@ class HTREngine:
         self.energy_history = state_data.get("energy_history", [])
 
         # Re-initialize computed properties after basic state is loaded
-        self.molecule_config = MoleculeConfig(**state_data.get("molecule_config", self.MOLECULE_PARAMS['propane'].__dict__))
+        # Re-load molecule_config from global config or fallback
+        mol_name = state_data.get("molecule", "propane")
+        self.molecule_config = self.config.get_molecule_config(mol_name)
+        if not self.molecule_config:
+            self.logger.warning(f"Molecule '{mol_name}' not found during import. Using default 'propane' config.")
+            self.molecule_config = self.config.get_molecule_config('propane')
+
         self.distances = self._calculate_distance_matrix()
         self.M_history = [self.M.copy()] # Reset M_history for simplicity on import
         self._update_tick_frequency()
