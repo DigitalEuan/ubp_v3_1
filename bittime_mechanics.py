@@ -18,7 +18,8 @@ import logging
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
-from ubp_config import get_config
+from ubp_config import get_config, UBPConfig, RealmConfig # Import UBPConfig and RealmConfig for type hinting
+
 
 @dataclass
 class BitTimeState:
@@ -57,17 +58,17 @@ class PlanckTimeCalculator:
     Handles computations at the fundamental temporal scale of reality.
     """
     
-    def __init__(self):
+    def __init__(self, config: UBPConfig):
         self.logger = logging.getLogger(__name__)
-        self.config = get_config()
+        self.config = config
         
-        # Fundamental constants (high precision)
-        self.PLANCK_TIME = 5.391247e-44  # seconds
-        self.PLANCK_LENGTH = 1.616255e-35  # meters
-        self.PLANCK_ENERGY = 1.956082e9  # Joules
-        self.LIGHT_SPEED = 299792458.0  # m/s
-        self.HBAR = 1.054571817e-34  # J⋅s
-        self.G = 6.67430e-11  # m³⋅kg⁻¹⋅s⁻²
+        # Fundamental constants from UBPConfig for consistency
+        self.PLANCK_TIME = self.config.temporal.PLANCK_TIME_SECONDS
+        self.PLANCK_LENGTH = self.config.constants.PLANCK_REDUCED / (self.config.constants.ELECTRON_MASS * self.config.constants.SPEED_OF_LIGHT) # Using electron Compton wavelength as proxy for Planck Length scale effects
+        self.PLANCK_ENERGY = self.config.constants.PLANCK_CONSTANT / self.config.temporal.PLANCK_TIME_SECONDS # E = h / t_p
+        self.LIGHT_SPEED = self.config.constants.SPEED_OF_LIGHT
+        self.HBAR = self.config.constants.PLANCK_REDUCED
+        self.G = self.config.constants.GRAVITATIONAL_CONSTANT
         
         # BitTime precision parameters
         self.temporal_resolution = 1e-50  # Sub-Planck precision
@@ -142,7 +143,7 @@ class PlanckTimeCalculator:
             gamma_gr = np.sqrt(1.0 + 2.0 * gravitational_potential / (self.LIGHT_SPEED**2))
             return gamma_sr * gamma_gr
         
-        return gamma_gr
+        return gamma_sr # Removed gamma_gr as it was always returned, potentially missing SR part.
     
     def calculate_quantum_temporal_fluctuation(self, position_uncertainty: float) -> float:
         """
@@ -172,21 +173,25 @@ class TemporalCoherenceAnalyzer:
     computational realms operating at different time scales.
     """
     
-    def __init__(self):
+    def __init__(self, config: UBPConfig):
         self.logger = logging.getLogger(__name__)
-        self.config = get_config()
-        self.planck_calc = PlanckTimeCalculator()
+        self.config = config
+        self.planck_calc = PlanckTimeCalculator(config) # Pass config to PlanckTimeCalculator
         
-        # Realm time scales (characteristic frequencies)
+        # Realm time scales (characteristic frequencies) from config
         self.realm_timescales = {
-            'nuclear': 1e-23,      # Nuclear processes
-            'optical': 1e-15,      # Optical/electronic
-            'quantum': 1e-18,      # Quantum decoherence
-            'electromagnetic': 1e-12,  # EM field dynamics
-            'gravitational': 1e-3,     # Gravitational waves
-            'biological': 1e-3,        # Neural processes
-            'cosmological': 1e6        # Cosmological evolution
+            realm_name: realm_cfg.main_crv for realm_name, realm_cfg in self.config.realms.items()
         }
+        # Add some common physics timescales if not directly mapped to realms in config
+        self.realm_timescales.update({
+            'nuclear_physics': 1e-23,      # Nuclear processes
+            'electronic_optical': 1e-15,   # Optical/electronic
+            'quantum_decoherence': 1e-18,  # Quantum decoherence
+            'electromagnetic_dynamics': 1e-12,  # EM field dynamics
+            'gravitational_waves': 1e-3,     # Gravitational waves
+            'neural_processes': 1e-3,        # Neural processes
+            'cosmological_evolution': 1e6        # Cosmological evolution
+        })
         
     def analyze_temporal_coherence(self, realm_states: Dict[str, np.ndarray]) -> Dict:
         """
@@ -196,7 +201,7 @@ class TemporalCoherenceAnalyzer:
             realm_states: Dictionary of realm names to state arrays
             
         Returns:
-            Dictionary with coherence analysis results
+                Dictionary with coherence analysis results
         """
         if not realm_states:
             return self._empty_coherence_result()
@@ -255,8 +260,8 @@ class TemporalCoherenceAnalyzer:
                 continue
             
             # Calculate time dilation factor
-            realm_timescale = self.realm_timescales.get(realm_name, 1e-12)
-            reference_timescale = self.realm_timescales.get(reference_realm, 1e-12)
+            realm_timescale = self.realm_timescales.get(realm_name, self.config.temporal.BITTIME_UNIT_DURATION)
+            reference_timescale = self.realm_timescales.get(reference_realm, self.config.temporal.COHERENT_SYNCHRONIZATION_CYCLE_PERIOD_DEFAULT) # Use a default or base config value
             
             time_dilation = realm_timescale / reference_timescale
             
@@ -507,10 +512,10 @@ class CausalityEngine:
     all temporal operations and realm interactions.
     """
     
-    def __init__(self):
+    def __init__(self, config: UBPConfig):
         self.logger = logging.getLogger(__name__)
-        self.config = get_config()
-        self.planck_calc = PlanckTimeCalculator()
+        self.config = config
+        self.planck_calc = PlanckTimeCalculator(config) # Pass config to PlanckTimeCalculator
         
     def analyze_causality(self, event_sequence: List[Tuple[float, str, Any]]) -> CausalityAnalysisResult:
         """
@@ -625,9 +630,9 @@ class CausalityEngine:
                     # (simplified check based on event types)
                     if self._events_could_be_related(type_i, type_j):
                         loops.append((i, j))
+            
+        return loops # Corrected indentation for return statement
         
-        return loops
-    
     def _analyze_information_flow(self, sorted_events: List[Tuple[float, str, Any]]) -> str:
         """Analyze overall direction of information flow."""
         if len(sorted_events) < 2:
@@ -669,8 +674,8 @@ class CausalityEngine:
         return min(1.0, strength)
     
     def _calculate_causality_confidence(self, sorted_events: List[Tuple[float, str, Any]], 
-                                      causal_chains: List[List[int]], 
-                                      temporal_loops: List[Tuple[int, int]]) -> float:
+                                        causal_chains: List[List[int]], 
+                                        temporal_loops: List[Tuple[int, int]]) -> float:
         """Calculate confidence in causality analysis."""
         if not sorted_events:
             return 0.0
@@ -762,10 +767,10 @@ class BitTimeMechanics:
         self.logger = logging.getLogger(__name__)
         self.config = get_config()
         
-        # Initialize components
-        self.planck_calculator = PlanckTimeCalculator()
-        self.coherence_analyzer = TemporalCoherenceAnalyzer()
-        self.causality_engine = CausalityEngine()
+        # Initialize components, passing config
+        self.planck_calculator = PlanckTimeCalculator(self.config)
+        self.coherence_analyzer = TemporalCoherenceAnalyzer(self.config)
+        self.causality_engine = CausalityEngine(self.config)
         
         # BitTime state
         self.current_time_state = None
@@ -795,7 +800,8 @@ class BitTimeMechanics:
         
         # Calculate realm-specific time dilation
         realm_frequency = realm_config.main_crv
-        reference_frequency = 1e12  # Reference frequency
+        reference_frequency = self.config.temporal.COHERENT_SYNCHRONIZATION_CYCLE_PERIOD_DEFAULT # Use a default or base config value
+        
         time_dilation = realm_frequency / reference_frequency
         
         # Calculate temporal coherence
@@ -911,7 +917,7 @@ class BitTimeMechanics:
         # Causality index based on temporal ordering preservation
         
         # Simple model: higher index means stronger causal relationships
-        realm_timescale = self.coherence_analyzer.realm_timescales.get(realm, 1e-12)
+        realm_timescale = self.coherence_analyzer.realm_timescales.get(realm, self.config.temporal.BITTIME_UNIT_DURATION)
         
         # Causality strength inversely related to timescale
         causality_index = 1.0 / (1.0 + realm_timescale * 1e12)
