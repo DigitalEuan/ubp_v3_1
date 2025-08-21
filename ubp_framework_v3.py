@@ -85,6 +85,7 @@ class UBPFramework: # This is the main orchestrator/container dataclass
             if isinstance(item, OffBit):
                 processed_data_values.append(item.value)
             elif isinstance(item, int):
+                # Ensure it's converted to np.uint32 as expected by OffBit or Bitfield
                 processed_data_values.append(np.uint32(item))
             else:
                 raise TypeError(f"Input data must be a list of OffBit objects or integers, got {type(item)}")
@@ -162,7 +163,7 @@ def create_ubp_system(
         default_realm: The initial default realm for the system.
         enable_error_correction: Whether to enable GLR error correction.
         enable_htr: Flag to indicate if HTR should be conceptually enabled (HTR engine not instantiated here).
-        enable_rgdl: Flag to indicate if RGDL should be conceptually enabled (RGDL engine not instantiated here).
+        enable_rgdl: Flag to indicate if RGDL should be conceptually enabled (RGDLEngine not instantiated here).
         
     Returns:
         A UBPFramework instance, serving as the orchestrator.
