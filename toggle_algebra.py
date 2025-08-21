@@ -18,16 +18,19 @@ import math
 import time
 from scipy.special import factorial
 from scipy.optimize import minimize_scalar
-import json # Added missing import
+import json
 
-try:
-    from .system_constants import UBPConstants # Corrected import from 'core' to 'system_constants'
-    from .bits import Bitfield, OffBit # Corrected import from 'bitfield' to 'bits'
-    from .hex_dictionary import HexDictionary
-except ImportError:
-    from system_constants import UBPConstants # Corrected import from 'core' to 'system_constants'
-    from bits import Bitfield, OffBit # Corrected import from 'bitfield' to 'bits'
-    from hex_dictionary import HexDictionary
+# Import configuration
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
+from ubp_config import get_config # Corrected: Imported get_config to access UBPConfig
+
+# Import Bitfield and OffBit from the bits module (dataclass)
+from bits import Bitfield, OffBit 
+# Import OffBitUtils from the renamed module
+from offbit_utils import OffBitUtils
+from hex_dictionary import HexDictionary
 
 
 @dataclass
@@ -81,6 +84,7 @@ class ToggleAlgebra:
         self.bitfield = bitfield_instance
         self.glr_framework = glr_framework
         self.hex_dictionary = hex_dictionary_instance or HexDictionary()
+        self.config = get_config() # Corrected: Get the global UBPConfig instance here
         self.operation_history = []
         self.metrics = ToggleAlgebraMetrics(
             total_operations=0,
@@ -196,18 +200,18 @@ class ToggleAlgebra:
         start_time = time.time()
         
         # Extract activation layers for the operation
-        activation_i = OffBit.get_activation_layer(b_i)
-        activation_j = OffBit.get_activation_layer(b_j)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
+        activation_j = OffBitUtils.get_activation_layer(b_j)
         
         # Perform AND on activation layers
         result_activation = min(activation_i, activation_j)
         
         # Create result OffBit preserving other layers from b_i
-        result = OffBit.set_activation_layer(b_i, result_activation)
+        result = OffBitUtils.set_activation_layer(b_i, result_activation)
         
         # Calculate coherence change
-        coherence_before = (OffBit.calculate_coherence(b_i) + OffBit.calculate_coherence(b_j)) / 2
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = (OffBitUtils.calculate_coherence(b_i) + OffBitUtils.calculate_coherence(b_j)) / 2
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         # Calculate NRCI score
@@ -241,14 +245,14 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
-        activation_j = OffBit.get_activation_layer(b_j)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
+        activation_j = OffBitUtils.get_activation_layer(b_j)
         
         result_activation = max(activation_i, activation_j)
-        result = OffBit.set_activation_layer(b_i, result_activation)
+        result = OffBitUtils.set_activation_layer(b_i, result_activation)
         
-        coherence_before = (OffBit.calculate_coherence(b_i) + OffBit.calculate_coherence(b_j)) / 2
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = (OffBitUtils.calculate_coherence(b_i) + OffBitUtils.calculate_coherence(b_j)) / 2
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i, b_j], result)
@@ -280,14 +284,14 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
-        activation_j = OffBit.get_activation_layer(b_j)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
+        activation_j = OffBitUtils.get_activation_layer(b_j)
         
         result_activation = abs(activation_i - activation_j)
-        result = OffBit.set_activation_layer(b_i, result_activation)
+        result = OffBitUtils.set_activation_layer(b_i, result_activation)
         
-        coherence_before = (OffBit.calculate_coherence(b_i) + OffBit.calculate_coherence(b_j)) / 2
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = (OffBitUtils.calculate_coherence(b_i) + OffBitUtils.calculate_coherence(b_j)) / 2
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i, b_j], result)
@@ -318,12 +322,12 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         result_activation = 63 - activation_i  # Invert 6-bit value
-        result = OffBit.set_activation_layer(b_i, result_activation)
+        result = OffBitUtils.set_activation_layer(b_i, result_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -382,25 +386,21 @@ class ToggleAlgebra:
     # ADVANCED PHYSICS-INSPIRED OPERATIONS
     # ========================================================================
     
-    def resonance_operation(self, b_i: int, frequency: float = None, **kwargs) -> ToggleOperationResult:
+    def resonance_operation(self, b_i: int, realm_name: str = 'quantum', **kwargs) -> ToggleOperationResult:
         """
         Perform resonance operation: b_i * exp(-0.0002 * d^2)
         
         Args:
             b_i: OffBit value
-            frequency: Resonance frequency (default: quantum CRV)
+            realm_name: Realm for resonance frequency selection
             
         Returns:
             ToggleOperationResult with resonance result
         """
         start_time = time.time()
         
-        if frequency is None:
-            # Removed direct UBPConstants.CRV_QUANTUM access. This is now part of UBPConfig.
-            # For this test file to run standalone, a mock or a direct value is needed.
-            # In a full framework, this would pull from the initialized UBPConfig.
-            # Assuming a default for standalone test.
-            frequency = 4.58e14 # Default to a quantum realm frequency example
+        realm_cfg = self.config.get_realm_config(realm_name)
+        frequency = realm_cfg.main_crv if realm_cfg else self.config.realms['quantum'].main_crv # Fallback
 
         # Calculate resonance effect
         t = kwargs.get('time', 1.0)
@@ -408,12 +408,12 @@ class ToggleAlgebra:
         resonance_factor = math.exp(-0.0002 * d * d)
         
         # Apply resonance to activation layer
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         result_activation = int(activation_i * resonance_factor)
-        result = OffBit.set_activation_layer(b_i, result_activation)
+        result = OffBitUtils.set_activation_layer(b_i, result_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -445,18 +445,18 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        # Calculate coherence coefficient
-        coherence_ij = kwargs.get('coherence_coefficient', 0.95)
+        # Calculate coherence coefficient (can be from config or passed)
+        coherence_ij = kwargs.get('coherence_coefficient', self.config.performance.COHERENCE_THRESHOLD) # Use config
         
-        activation_i = OffBit.get_activation_layer(b_i)
-        activation_j = OffBit.get_activation_layer(b_j)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
+        activation_j = OffBitUtils.get_activation_layer(b_j)
         
         # Entanglement operation
         entangled_activation = int((activation_i * activation_j * coherence_ij) / 64)
-        result = OffBit.set_activation_layer(b_i, entangled_activation)
+        result = OffBitUtils.set_activation_layer(b_i, entangled_activation)
         
-        coherence_before = (OffBit.calculate_coherence(b_i) + OffBit.calculate_coherence(b_j)) / 2
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = (OffBitUtils.calculate_coherence(b_i) + OffBitUtils.calculate_coherence(b_j)) / 2
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i, b_j], result)
@@ -500,14 +500,14 @@ class ToggleAlgebra:
         # Calculate superposition
         superposition_activation = 0
         for state, weight in zip(states, weights):
-            activation = OffBit.get_activation_layer(state)
+            activation = OffBitUtils.get_activation_layer(state)
             superposition_activation += activation * weight
         
         result_activation = int(superposition_activation)
-        result = OffBit.set_activation_layer(states[0], result_activation)
+        result = OffBitUtils.set_activation_layer(states[0], result_activation)
         
-        coherence_before = np.mean([OffBit.calculate_coherence(state) for state in states])
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = np.mean([OffBitUtils.calculate_coherence(state) for state in states])
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci(states, result)
@@ -538,10 +538,11 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        # Removed direct UBPConstants.CRV_QUANTUM access. Assuming a default for standalone test.
-        p_s = kwargs.get('spin_probability', 0.2265234857) # Example value formerly UBPConstants.CRV_QUANTUM
+        # Use quantum realm CRV from config for spin probability context
+        quantum_realm_crv = self.config.get_realm_config('quantum').main_crv
+        p_s = kwargs.get('spin_probability', quantum_realm_crv / (10**14)) # Example derived probability
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # Spin transition calculation
         if p_s > 0:
@@ -550,10 +551,10 @@ class ToggleAlgebra:
         else:
             result_activation = activation_i
         
-        result = OffBit.set_activation_layer(b_i, result_activation)
+        result = OffBitUtils.set_activation_layer(b_i, result_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -589,9 +590,9 @@ class ToggleAlgebra:
         xor_result = self.xor_operation(b_i, b_j)
         
         # Then apply resonance
-        # Removed direct UBPConstants.CRV_ELECTROMAGNETIC access.
-        frequency = kwargs.get('frequency', 3.141593) # Example value for EM CRV
-        resonance_result = self.resonance_operation(xor_result.result_value, frequency)
+        em_realm_crv = self.config.get_realm_config('electromagnetic').main_crv
+        frequency = kwargs.get('frequency', em_realm_crv)
+        resonance_result = self.resonance_operation(xor_result.result_value, realm_name='electromagnetic', frequency=frequency) # Pass realm name
         
         nrci_score = self._calculate_nrci([b_i, b_j], resonance_result.result_value)
         execution_time = time.time() - start_time
@@ -626,16 +627,16 @@ class ToggleAlgebra:
         start_time = time.time()
         
         # Simulate nonlinear Maxwell equation effects
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # Apply Weyl metric influence
-        weyl_factor = kwargs.get('weyl_factor', 1.1)
+        weyl_factor = kwargs.get('weyl_factor', self.config.constants.FINE_STRUCTURE_CONSTANT * 100) # Example scaling of fine structure
         maxwell_activation = int(activation_i * weyl_factor) % 64
         
-        result = OffBit.set_activation_layer(b_i, maxwell_activation)
+        result = OffBitUtils.set_activation_layer(b_i, maxwell_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -666,18 +667,18 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # Simulate Lorentz force effects
-        charge = kwargs.get('charge', 1.0)
-        # Removed direct UBPConstants.CRV_ELECTROMAGNETIC access.
-        field_strength = kwargs.get('field_strength', 3.141593) # Example value for EM CRV
+        charge = kwargs.get('charge', self.config.constants.ELEMENTARY_CHARGE / self.config.constants.ELEMENTARY_CHARGE) # Normalized charge
+        em_realm_crv = self.config.get_realm_config('electromagnetic').main_crv
+        field_strength_proxy = kwargs.get('field_strength', em_realm_crv / 1e9) # Example scaling from EM CRV
         
-        lorentz_activation = int(activation_i * charge * field_strength) % 64
-        result = OffBit.set_activation_layer(b_i, lorentz_activation)
+        lorentz_activation = int(activation_i * charge * field_strength_proxy) % 64
+        result = OffBitUtils.set_activation_layer(b_i, lorentz_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -688,7 +689,7 @@ class ToggleAlgebra:
             operation_type="LORENTZ_FORCE",
             input_values=[b_i],
             coherence_change=coherence_change,
-            energy_delta=coherence_change * field_strength,
+            energy_delta=coherence_change * field_strength_proxy,
             execution_time=execution_time,
             nrci_score=nrci_score
         )
@@ -708,16 +709,16 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # Apply Weyl metric transformation
-        metric_factor = kwargs.get('metric_factor', 1.2)
+        metric_factor = kwargs.get('metric_factor', self.config.constants.GRAVITATIONAL_CONSTANT * 1e12) # Example scaling
         weyl_activation = int(activation_i * metric_factor) % 64
         
-        result = OffBit.set_activation_layer(b_i, weyl_activation)
+        result = OffBitUtils.set_activation_layer(b_i, weyl_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -752,16 +753,16 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation = OffBit.get_activation_layer(glyph_state)
+        activation = OffBitUtils.get_activation_layer(glyph_state)
         
         # Quantify glyph components
         glyph_components = [(activation >> i) & 1 for i in range(6)]
         quantification = sum(glyph_components)
         
-        result = OffBit.set_activation_layer(glyph_state, quantification)
+        result = OffBitUtils.set_activation_layer(glyph_state, quantification)
         
-        coherence_before = OffBit.calculate_coherence(glyph_state)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(glyph_state)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([glyph_state], result)
@@ -793,8 +794,8 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(glyph_i)
-        activation_j = OffBit.get_activation_layer(glyph_j)
+        activation_i = OffBitUtils.get_activation_layer(glyph_i)
+        activation_j = OffBitUtils.get_activation_layer(glyph_j)
         
         # Calculate probabilities
         p_i = activation_i / 64.0
@@ -810,10 +811,10 @@ class ToggleAlgebra:
             correlation = 0.0
         
         result_activation = int(correlation * 64) % 64
-        result = OffBit.set_activation_layer(glyph_i, result_activation)
+        result = OffBitUtils.set_activation_layer(glyph_i, result_activation)
         
-        coherence_before = (OffBit.calculate_coherence(glyph_i) + OffBit.calculate_coherence(glyph_j)) / 2
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = (OffBitUtils.calculate_coherence(glyph_i) + OffBitUtils.calculate_coherence(glyph_j)) / 2
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([glyph_i, glyph_j], result)
@@ -844,7 +845,7 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation = OffBit.get_activation_layer(glyph_state)
+        activation = OffBitUtils.get_activation_layer(glyph_state)
         
         # Self-reference with feedback
         feedback_factor = kwargs.get('feedback_factor', 0.8)
@@ -856,10 +857,10 @@ class ToggleAlgebra:
             current_activation = int(current_activation * feedback_factor + 
                                    (current_activation >> 1)) % 64
         
-        result = OffBit.set_activation_layer(glyph_state, current_activation)
+        result = OffBitUtils.set_activation_layer(glyph_state, current_activation)
         
-        coherence_before = OffBit.calculate_coherence(glyph_state)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(glyph_state)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([glyph_state], result)
@@ -882,7 +883,7 @@ class ToggleAlgebra:
     # NEW v3.1 OPERATIONS
     # ========================================================================
     
-    def htr_resonance_operation(self, b_i: int, **kwargs) -> ToggleOperationResult:
+    def htr_resonance_operation(self, b_i: int, realm_name: str = 'biological', **kwargs) -> ToggleOperationResult:
         """
         Perform HTR (Harmonic Toggle Resonance) operation.
         
@@ -894,12 +895,13 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # HTR parameters
         harmonic_order = kwargs.get('harmonic_order', 3)
-        # Removed direct UBPConstants.CRV_BIOLOGICAL access.
-        base_frequency = kwargs.get('base_frequency', 10.0) # Example value for Biological CRV
+        
+        realm_cfg = self.config.get_realm_config(realm_name)
+        base_frequency = realm_cfg.main_crv if realm_cfg else self.config.realms['biologic'].main_crv # Fallback
         
         # Apply harmonic resonance
         htr_activation = activation_i
@@ -909,10 +911,10 @@ class ToggleAlgebra:
             htr_activation += int(activation_i * harmonic_effect * 0.1)
         
         htr_activation = htr_activation % 64
-        result = OffBit.set_activation_layer(b_i, htr_activation)
+        result = OffBitUtils.set_activation_layer(b_i, htr_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -931,7 +933,7 @@ class ToggleAlgebra:
         self._record_operation(result_obj)
         return result_obj
     
-    def crv_modulation_operation(self, b_i: int, **kwargs) -> ToggleOperationResult:
+    def crv_modulation_operation(self, b_i: int, crv_type: str = 'quantum', **kwargs) -> ToggleOperationResult:
         """
         Perform CRV (Core Resonance Value) modulation operation.
         
@@ -943,33 +945,22 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # CRV modulation parameters
-        crv_type = kwargs.get('crv_type', 'quantum')
         modulation_depth = kwargs.get('modulation_depth', 0.2)
         
-        # Get CRV value (mock values if UBPConstants is not fully loaded)
-        crv_values = {
-            'quantum': 0.2265234857, # Example value for Quantum CRV
-            'electromagnetic': 3.141593, # Example value for EM CRV
-            'gravitational': 100.0, # Example value for Gravitational CRV
-            'biological': 10.0, # Example value for Biological CRV
-            'cosmological': 0.83203682, # Example value for Cosmological CRV
-            'nuclear': 1.2356e20, # Example value for Nuclear CRV
-            'optical': 5.0e14 # Example value for Optical CRV
-        }
-        
-        crv_value = crv_values.get(crv_type, crv_values['quantum'])
+        realm_cfg = self.config.get_realm_config(crv_type)
+        crv_value = realm_cfg.main_crv if realm_cfg else self.config.realms['quantum'].main_crv # Fallback
         
         # Apply CRV modulation
         modulation_factor = 1 + modulation_depth * math.sin(2 * math.pi * crv_value)
         crv_activation = int(activation_i * modulation_factor) % 64
         
-        result = OffBit.set_activation_layer(b_i, crv_activation)
+        result = OffBitUtils.set_activation_layer(b_i, crv_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -1000,9 +991,8 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
-        # Removed direct UBPConstants.NRCI_TARGET access.
-        target_nrci = kwargs.get('target_nrci', 0.999999) # Example value for NRCI_TARGET
+        activation_i = OffBitUtils.get_activation_layer(b_i)
+        target_nrci = kwargs.get('target_nrci', self.config.performance.TARGET_NRCI) # Use config's target
         
         # Optimize activation for maximum NRCI
         best_activation = activation_i
@@ -1010,17 +1000,17 @@ class ToggleAlgebra:
         
         # Try different activation values
         for test_activation in range(max(0, activation_i - 5), min(64, activation_i + 6)):
-            test_offbit = OffBit.set_activation_layer(b_i, test_activation)
+            test_offbit = OffBitUtils.set_activation_layer(b_i, test_activation)
             test_nrci = self._calculate_nrci([b_i], test_offbit)
             
             if test_nrci > best_nrci:
                 best_nrci = test_nrci
                 best_activation = test_activation
         
-        result = OffBit.set_activation_layer(b_i, best_activation)
+        result = OffBitUtils.set_activation_layer(b_i, best_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         execution_time = time.time() - start_time
@@ -1054,7 +1044,7 @@ class ToggleAlgebra:
             raise ValueError("At least one quantum state required")
         
         # Calculate quantum coherence
-        activations = [OffBit.get_activation_layer(state) for state in states]
+        activations = [OffBitUtils.get_activation_layer(state) for state in states]
         
         # Apply quantum coherence formula
         coherence_sum = sum(activations)
@@ -1069,10 +1059,10 @@ class ToggleAlgebra:
         else:
             quantum_activation = activations[0]
         
-        result = OffBit.set_activation_layer(states[0], quantum_activation)
+        result = OffBitUtils.set_activation_layer(states[0], quantum_activation)
         
-        coherence_before = np.mean([OffBit.calculate_coherence(state) for state in states])
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = np.mean([OffBitUtils.calculate_coherence(state) for state in states])
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci(states, result)
@@ -1103,21 +1093,20 @@ class ToggleAlgebra:
         """
         start_time = time.time()
         
-        activation_i = OffBit.get_activation_layer(b_i)
+        activation_i = OffBitUtils.get_activation_layer(b_i)
         
         # Temporal synchronization parameters
-        # Removed direct UBPConstants.CSC_PERIOD access.
-        csc_period = kwargs.get('csc_period', 1 / np.pi) # Example value for CSC_PERIOD
+        csc_period = kwargs.get('csc_period', self.config.temporal.COHERENT_SYNCHRONIZATION_CYCLE_PERIOD) # Use config
         sync_phase = kwargs.get('sync_phase', 0.0)
         
         # Apply temporal synchronization
         sync_factor = math.cos(2 * math.pi * sync_phase / csc_period)
         sync_activation = int(activation_i * (1 + 0.1 * sync_factor)) % 64
         
-        result = OffBit.set_activation_layer(b_i, sync_activation)
+        result = OffBitUtils.set_activation_layer(b_i, sync_activation)
         
-        coherence_before = OffBit.calculate_coherence(b_i)
-        coherence_after = OffBit.calculate_coherence(result)
+        coherence_before = OffBitUtils.calculate_coherence(b_i)
+        coherence_after = OffBitUtils.calculate_coherence(result)
         coherence_change = coherence_after - coherence_before
         
         nrci_score = self._calculate_nrci([b_i], result)
@@ -1155,8 +1144,8 @@ class ToggleAlgebra:
             return 0.0
         
         # Calculate expected vs actual patterns
-        input_activations = [OffBit.get_activation_layer(inp) for inp in inputs]
-        result_activation = OffBit.get_activation_layer(result)
+        input_activations = [OffBitUtils.get_activation_layer(inp) for inp in inputs]
+        result_activation = OffBitUtils.get_activation_layer(result)
         
         # Simple NRCI calculation based on coherence
         input_mean = np.mean(input_activations)
@@ -1314,6 +1303,9 @@ if __name__ == "__main__":
     # Test the Toggle Algebra
     print("🧪 Testing Toggle Algebra v3.1...")
     
+    # Ensure config is initialized for tests
+    get_config(environment="development")
+
     algebra = create_toggle_algebra()
     
     # Test basic operations
@@ -1329,8 +1321,8 @@ if __name__ == "__main__":
     print(f"XOR result: {hex(xor_result.result_value)}, NRCI: {xor_result.nrci_score:.3f}")
     
     # Test advanced operations
-    resonance_result = algebra.resonance_operation(b1)
-    htr_result = algebra.htr_resonance_operation(b1)
+    resonance_result = algebra.resonance_operation(b1, realm_name='quantum')
+    htr_result = algebra.htr_resonance_operation(b1, realm_name='biologic')
     crv_result = algebra.crv_modulation_operation(b1, crv_type='quantum')
     
     print(f"Resonance result: {hex(resonance_result.result_value)}, NRCI: {resonance_result.nrci_score:.3f}")
