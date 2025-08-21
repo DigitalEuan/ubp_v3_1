@@ -45,9 +45,9 @@ class UBPClassRegistry:
         'OffBit': 'bits.OffBit', # OffBit dataclass now in bits.py
         'OffBitUtils': 'offbit_utils.OffBitUtils', # New utility class for raw int manipulation
         'RealmManager': 'realms.RealmManager',
-        'PlatonicRealm': 'realms.PlatonicRealm',
+        # 'PlatonicRealm': 'realms.PlatonicRealm', # REMOVED: Not a direct class, but a conceptual term for RealmConfig
         'ToggleAlgebra': 'toggle_algebra.ToggleAlgebra',
-        'ToggleOperationResult': 'toggle_algebra.ToggleAlgebraOperationResult', # Corrected name from ToggleOperationResult
+        'ToggleOperationResult': 'toggle_algebra.ToggleOperationResult', # Corrected name
         'HexDictionary': 'hex_dictionary.HexDictionary',
         'RGDLEngine': 'rgdl_engine.RGDLEngine',
         'NuclearRealm': 'nuclear_realm.NuclearRealm',
@@ -81,7 +81,7 @@ class UBPClassRegistry:
         'RealmConfig': 'ubp_config.RealmConfig',
         'CRVConfig': 'ubp_config.CRVConfig',
         'ErrorCorrectionConfig': 'ubp_config.ErrorCorrectionConfig',
-        'PerformanceConfig': 'ubp_config.Performance.PerformanceConfig', # Corrected path
+        'PerformanceConfig': 'ubp_config.PerformanceConfig', # Corrected path
         'ObserverConfig': 'ubp_config.ObserverConfig',
         'TemporalConfig': 'ubp_config.TemporalConfig',
         'ConstantConfig': 'ubp_config.ConstantConfig', # Re-added ConstantConfig
@@ -394,22 +394,37 @@ def get_class_import_statement(class_name: str) -> Optional[str]:
             return f"from {module_path} import {class_name_in_module}"
     return None
 
-# Updated list of available modules reflecting the changes
+# UPDATED: Comprehensive list of all available Python modules in the environment.
 UBP_AVAILABLE_MODULES = [
-    'bittime_mechanics.py', 'hex_dictionary.py', 'nuclear_realm.py',
-    'optical_realm.py', 'realms.py', 'rgdl_engine.py', 'rune_protocol.py',
-    'toggle_algebra.py', 'core_v2.py', 
-    'ubp_framework_v3.py', # Renamed main orchestrator
-    'crv_database.py', 'hardware_profiles.py', 'system_constants.py', 'ubp_config.py',
-    'ubp_reference_sheet.py', 'test_ubp_v31_validation.py', 'UBP_Test_Drive_HexDictionary_Element_Storage.py',
-    'UBP_Test_Drive_Complete_Periodic_Table_118_Elements.py', 'UBP_Test_Drive_Material_Research_Resonant_Steel.py',
-    'install_deps.py', 'htr_engine.py', 'bits.py', # Removed offbit.py
-    'offbit_utils.py', # Added offbit_utils.py
-    'glr_error_correction.py', # New module for GLR framework
-    'enhanced_crv_selector.py', # Added explicitely as it contains new classes
-    'hex_dictionary_persistent.py', # Added this for consistency with provided files
-    'clear_hex_dictionary.py', # Added this for consistency with provided files
-    'verify_storage.py' # Added this for consistency with provided files
+    'bittime_mechanics.py', 
+    'hex_dictionary.py', 
+    'nuclear_realm.py',
+    'optical_realm.py', 
+    'realms.py', 
+    'rgdl_engine.py', 
+    'rune_protocol.py',
+    'toggle_algebra.py', 
+    'core_v2.py', 
+    'ubp_framework_v3.py', 
+    'crv_database.py', 
+    'hardware_profiles.py', 
+    'system_constants.py', 
+    'ubp_config.py',
+    'ubp_reference_sheet.py', 
+    'test_ubp_v31_validation.py', 
+    'UBP_Test_Drive_HexDictionary_Element_Storage.py',
+    'UBP_Test_Drive_Complete_Periodic_Table_118_Elements.py', 
+    'UBP_Test_Drive_Material_Research_Resonant_Steel.py',
+    'install_deps.py', 
+    'htr_engine.py', 
+    'bits.py',
+    'offbit_utils.py', 
+    'glr_error_correction.py', 
+    'enhanced_crv_selector.py', 
+    'hex_dictionary_persistent.py', 
+    'clear_hex_dictionary.py', 
+    'verify_storage.py',
+    'store_ubp_metadata.py' # Added self to the list.
 ]
 
 def validate_system_integrity() -> Dict[str, bool]:
