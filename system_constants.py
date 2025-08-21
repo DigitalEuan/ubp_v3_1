@@ -19,11 +19,25 @@ class UBPConstants:
     # --- Universal Physical Constants ---
     SPEED_OF_LIGHT = 299792458  # meters per second (m/s)
     PLANCK_CONSTANT = 6.62607015e-34  # Joule-seconds (J⋅s)
+    PLANCK_REDUCED = 1.054571817e-34 # J⋅s (hbar)
     BOLTZMANN_CONSTANT = 1.380649e-23  # Joules per Kelvin (J/K)
     FINE_STRUCTURE_CONSTANT = 0.0072973525693  # Dimensionless
     GRAVITATIONAL_CONSTANT = 6.67430e-11  # m³⋅kg⁻¹⋅s⁻²
     AVOGADRO_NUMBER = 6.02214076e23  # mol⁻¹
     ELEMENTARY_CHARGE = 1.602176634e-19  # Coulombs (C)
+    VACUUM_PERMITTIVITY = 8.8541878128e-12 # Farads per meter (F/m)
+    VACUUM_PERMEABILITY = 1.25663706212e-6 # Henries per meter (N/A²)
+
+    ELECTRON_MASS = 9.1093837015e-31 # kg
+    PROTON_MASS = 1.67262192369e-27 # kg
+    NEUTRON_MASS = 1.67492749804e-27 # kg
+
+    NUCLEAR_MAGNETON = 5.0507837461e-27 # J/T
+    PROTON_GYROMAGNETIC = 2.6752218744e8 # rad/(s*T)
+    NEUTRON_GYROMAGNETIC = -1.8324717e8 # rad/(s*T)
+    DEUTERON_BINDING_ENERGY = 2.224573e6 # eV
+
+    RYDBERG_CONSTANT = 1.097373156853967e7 # m⁻¹
 
     # --- Mathematical Constants ---
     PI = np.pi  # π (Pi)
@@ -47,6 +61,11 @@ class UBPConstants:
     BITFIELD_DEFAULT_SPARSITY = 0.01
     MAX_BITFIELD_DIMENSIONS = 6 # 6D operational space
 
+    # UBP-specific constants
+    C_INFINITY: float = 1.0e+308 # Conceptual maximum speed/information propagation rate
+    OFFBIT_ENERGY_UNIT: float = 1.0e-30 # Base energy unit for a single OffBit operation/state
+    EPSILON_UBP: float = 1e-18 # Smallest significant UBP value, prevents division by zero in log/etc.
+
     # OffBit counts for different hardware profiles (used by hardware_profiles.py)
     # These values are aligned with memory limitations and performance expectations.
     OFFBITS_4GB_MOBILE = 10000       # Memory optimized for mobile
@@ -55,7 +74,7 @@ class UBPConstants:
     OFFBITS_GOOGLE_COLAB = 2500000   # Optimized for Colab's typical resources
     OFFBITS_KAGGLE = 2000000         # Optimized for Kaggle's typical resources
     OFFBITS_HPC = 10000000           # High-Performance Computing
-    OFFBITS_DEVELOPMENT = 10000      # Small for quick testing
+    OFFBITS_DEVELOPMENT = 10000      # Small for fast testing
 
     # Bitfield dimension configurations (used by hardware_profiles.py)
     # Dimensions are (X, Y, Z, A, B, C) where X,Y,Z are spatial/primary, A,B,C are conceptual/secondary.
