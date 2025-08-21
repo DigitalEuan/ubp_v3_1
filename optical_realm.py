@@ -329,8 +329,11 @@ class OpticalRealm:
         berry_phase = np.dot(wge.berry_curvature, [field_strength, 0, 0])
         geometric_phase = berry_phase * alpha
         
+        # Topological contribution (simplified constant value for now)
+        topological_contribution = 0.0 # Initialized here
+        
         # Total quantized charge considering different contributions
-        quantized_charge = e * (quantization_number + geometric_phase / (2*np.pi))
+        quantized_charge = e * (quantization_number + geometric_phase / (2*np.pi)) + topological_contribution
         
         return {
             'flux_quantum': flux_quantum,
