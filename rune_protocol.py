@@ -114,6 +114,7 @@ class QuantifyOperator(GlyphOperator):
         
         # Update coherence based on quantification quality
         # Ensure non-zero denominator for variance calculation
+        # Use a small epsilon to avoid division by zero when calculating state_coherence
         mean_squared = np.mean(glyph_state.state_vector)**2
         state_coherence = 1.0 - np.var(glyph_state.state_vector) / (mean_squared + 1e-10)
         new_coherence_pressure = glyph_state.coherence_pressure * (1.0 + state_coherence * 0.1)
@@ -538,7 +539,6 @@ class EmergenceDetector:
         if len(glyph_states) < 2:
             return 0.0
         
-        # Complexity based on correlation between Glyph states
         correlations = []
         
         for i, glyph1 in enumerate(glyph_states):
@@ -847,6 +847,17 @@ class RuneProtocol:
             
             operation_time = time.time() - start_time
             
+            # Extract specific metadata from the updated_state for the RuneOperationResult
+            operation_specific_metadata = {}
+            if operation_type == 'quantify':
+                # FIX: Copy quantified_value from updated_state.metadata to RuneOperationResult.metadata
+                operation_specific_metadata['quantified_value'] = updated_state.metadata.get('quantified_value')
+            elif operation_type == 'correlate': # In case correlate also uses this single-glyph path
+                operation_specific_metadata['correlation_coefficient'] = updated_state.metadata.get('correlation_coefficient')
+            elif operation_type == 'self_reference':
+                operation_specific_metadata['self_reference_applied'] = updated_state.metadata.get('self_reference_applied')
+                operation_specific_metadata['feedback_strength'] = updated_state.metadata.get('feedback_strength')
+            
             # Create result
             result = RuneOperationResult(
                 operation_type=operation_type,
@@ -858,6 +869,7 @@ class RuneProtocol:
                 operation_time=operation_time,
                 nrci_score=nrci_score,
                 metadata={
+                    **operation_specific_metadata, # Add specific metadata here
                     'emergence_result': emergence_result,
                     'initial_state_norm': np.linalg.norm(glyph_state.state_vector) if glyph_state.state_vector.size > 0 else 0.0,
                     'final_state_norm': np.linalg.norm(updated_state.state_vector) if updated_state.state_vector.size > 0 else 0.0
@@ -912,6 +924,12 @@ class RuneProtocol:
             # Update first Glyph with correlation result
             self.glyphs[glyph_ids[0]] = updated_state
             
+            # Extract specific metadata from the updated_state for the RuneOperationResult
+            operation_specific_metadata = {}
+            if operation_type == 'correlate':
+                # FIX: Copy correlation_coefficient from updated_state.metadata to RuneOperationResult.metadata
+                operation_specific_metadata['correlation_coefficient'] = updated_state.metadata.get('correlation_coefficient')
+
             # Check for emergence across all involved Glyphs
             all_states = [self.glyphs[gid] for gid in glyph_ids]
             emergence_result = self.emergence_detector.detect_emergence(all_states)
@@ -930,7 +948,10 @@ class RuneProtocol:
                 emergence_detected=emergence_result['emergence_detected'],
                 operation_time=operation_time,
                 nrci_score=nrci_score,
-                metadata={'emergence_result': emergence_result}
+                metadata={
+                    **operation_specific_metadata, # Add specific metadata here
+                    'emergence_result': emergence_result
+                }
             )
             
             self.operation_history.append(result)
