@@ -26,6 +26,19 @@ from glr_error_correction import ComprehensiveErrorCorrectionFramework, GLRMetri
 # Import UBPConfig for overall system configuration
 from ubp_config import get_config
 
+# Import additional engines if they are to be integrated here
+try:
+    from htr_engine import HTREngine
+except ImportError:
+    HTREngine = None
+    print("Warning: htr_engine.py not found or could not be imported. HTR functionality will be limited.")
+
+try:
+    from rgdl_engine import RGDLEngine
+except ImportError:
+    RGDLEngine = None
+    print("Warning: rgdl_engine.py not found or could not be imported. RGDL functionality will be limited.")
+
 
 @dataclass
 class UBPFramework: # This is the main orchestrator/container dataclass
@@ -37,6 +50,8 @@ class UBPFramework: # This is the main orchestrator/container dataclass
     bitfield: Bitfield
     hex_dictionary: HexDictionary
     glr_framework: ComprehensiveErrorCorrectionFramework
+    htr_engine: Optional[HTREngine] = None # Added HTR Engine
+    rgdl_engine: Optional[RGDLEngine] = None # Added RGDL Engine
     
     # Additional components/states managed by the orchestrator
     config: Any = field(init=False) # Will be initialized from core_ubp
@@ -48,6 +63,8 @@ class UBPFramework: # This is the main orchestrator/container dataclass
         print(f"   Bitfield Dimensions: {self.bitfield.dimensions}")
         print(f"   HexDictionary Entries: {len(self.hex_dictionary.entries)}")
         print(f"   GLR Realm: {self.glr_framework.realm_name}")
+        print(f"   HTR Engine: {'Enabled' if self.htr_engine else 'Disabled'}")
+        print(f"   RGDL Engine: {'Enabled' if self.rgdl_engine else 'Disabled'}")
 
     def run_computation(self, operation_type: str, input_data: List[Union[int, OffBit]], 
                        realm: Optional[str] = None, observer_intent: float = 1.0,
@@ -94,11 +111,25 @@ class UBPFramework: # This is the main orchestrator/container dataclass
         processed_data_values_mutable = list(processed_data_values) 
 
         # 2. Apply HTR (conceptual for this module, requires htr_engine integration)
-        if enable_htr:
-            print("Applying conceptual HTR transformation...")
-            # Placeholder for HTR integration:
-            # if self.htr_engine:
-            #     processed_data_values_mutable = self.htr_engine.process(processed_data_values_mutable, current_realm_name)
+        if enable_htr and self.htr_engine:
+            print("Applying HTR transformation...")
+            # Example HTR processing; depends on what htr_engine.process_with_htr expects
+            # For simplicity, let's assume it processes a list of values
+            # and returns a new list of processed values or a summary.
+            # Convert OffBit values (uint32) to float numpy array for HTR
+            htr_input_data_np = np.array(processed_data_values_mutable, dtype=float)
+            
+            # Use HTR engine to process the data
+            htr_processing_results = self.htr_engine.process_with_htr(
+                data=htr_input_data_np, 
+                realm=current_realm_name, 
+                optimize=False # Not optimizing CRV during general computation run
+            )
+            
+            # The htr_processing_results typically returns metrics, not modified offbits.
+            # If HTR was meant to transform offbits directly, more complex integration is needed.
+            # For now, let's just record HTR's conceptual impact or summary.
+            results['htr_processing_summary'] = htr_processing_results
             results['htr_applied'] = True
         else:
             results['htr_applied'] = False
@@ -192,8 +223,6 @@ def create_ubp_system(
     print("  HexDictionary initialized.")
 
     # 4. Initialize GLR Error Correction Framework
-    # Need to pass the config object or relevant parts to GLR if it depends on them.
-    # For now, it will pull config via its own get_config()
     glr = ComprehensiveErrorCorrectionFramework(
         realm_name=default_realm,
         enable_error_correction=enable_error_correction,
@@ -201,20 +230,32 @@ def create_ubp_system(
     )
     print("  GLR Error Correction Framework initialized.")
 
-    # Note: HTR and RGDL engines would be instantiated here if they were separate
-    # modules and part of this top-level orchestration. Their enablement flags
-    # are processed conceptually for now.
-    if enable_htr:
-        print("  HTR Engine enablement requested (integration point for future HTREngine instance).")
-    if enable_rgdl:
-        print("  RGDL Engine enablement requested (integration point for future RGDLEngine instance).")
+    # 5. Initialize HTR Engine if enabled
+    htr_engine_instance = None
+    if enable_htr and HTREngine:
+        # HTREngine requires a molecule_name and realm_name on init
+        # For general purpose, use a default molecule (e.g., 'propane')
+        htr_engine_instance = HTREngine(molecule_name='propane', realm_name=default_realm)
+        print("  HTR Engine initialized.")
+    elif enable_htr:
+        print("  HTR Engine requested but HTREngine class not found. Skipping initialization.")
 
-    # 5. Create and return the comprehensive UBPFramework orchestrator instance
+    # 6. Initialize RGDL Engine if enabled
+    rgdl_engine_instance = None
+    if enable_rgdl and RGDLEngine:
+        rgdl_engine_instance = RGDLEngine(bitfield_instance=bitfield, hex_dictionary_instance=hex_dict)
+        print("  RGDL Engine initialized.")
+    elif enable_rgdl:
+        print("  RGDL Engine requested but RGDLEngine class not found. Skipping initialization.")
+
+    # 7. Create and return the comprehensive UBPFramework orchestrator instance
     framework_instance = UBPFramework(
         core_ubp=core_ubp_instance,
         bitfield=bitfield,
         hex_dictionary=hex_dict,
-        glr_framework=glr
+        glr_framework=glr,
+        htr_engine=htr_engine_instance, # Pass HTR instance
+        rgdl_engine=rgdl_engine_instance # Pass RGDL instance
     )
     print("UBP System v3.2 Orchestrator instance created successfully.")
     return framework_instance
@@ -232,7 +273,9 @@ if __name__ == "__main__":
     ubp_system = create_ubp_system(
         bitfield_size=1000, # This argument is illustrative, actual dimensions from config.
         default_realm="quantum",
-        enable_error_correction=True
+        enable_error_correction=True,
+        enable_htr=True, # Enable HTR for testing the orchestrator
+        enable_rgdl=True # Enable RGDL for testing the orchestrator
     )
     
     # Example usage: Run a computation
@@ -259,7 +302,7 @@ if __name__ == "__main__":
         input_data=test_offbits_input,
         realm="quantum",
         observer_intent=1.5,
-        enable_htr=False,
+        enable_htr=True, # Enable HTR in computation call
         enable_error_correction=True
     )
     
@@ -268,6 +311,9 @@ if __name__ == "__main__":
     print(f"  Total Execution Time: {results['total_execution_time_s']:.4f} seconds")
     print(f"  GLR Spatial Correction Applied: {results.get('glr_spatial_correction', {}).get('applied')}")
     print(f"  Errors Corrected (Spatial): {results.get('glr_spatial_correction', {}).get('errors_corrected')}")
+    print(f"  HTR Applied: {results.get('htr_applied')}")
+    if results.get('htr_applied'):
+        print(f"    HTR NRCI: {results.get('htr_processing_summary', {}).get('nrci'):.4f}")
     print(f"  HexDictionary Key for Processed Data: {results.get('hex_dictionary_key')}")
     print(f"  Final Combined NRCI: {results.get('glr_current_metrics', {}).get('nrci_combined'):.3f}")
     
