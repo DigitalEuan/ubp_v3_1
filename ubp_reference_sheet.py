@@ -21,6 +21,7 @@ import json # For serialization later
 
 # Import the centralized UBPConfig
 from ubp_config import get_config, UBPConfig, RealmConfig
+from system_constants import UBPConstants # Import UBPConstants directly for values not in UBPConfig's dataclasses
 
 # ============================================================================
 # SYSTEM METADATA
@@ -41,11 +42,12 @@ class UBPClassRegistry:
     CORE_CLASSES = {
         'UBPFramework': 'core_v2.UBPFramework', # This is the core operational framework
         'Bitfield': 'bits.Bitfield',
-        'OffBit': 'bits.OffBit',
+        'OffBit': 'bits.OffBit', # OffBit dataclass now in bits.py
+        'OffBitUtils': 'offbit_utils.OffBitUtils', # New utility class for raw int manipulation
         'RealmManager': 'realms.RealmManager',
         'PlatonicRealm': 'realms.PlatonicRealm',
         'ToggleAlgebra': 'toggle_algebra.ToggleAlgebra',
-        'ToggleOperationResult': 'toggle_algebra.ToggleOperationResult',
+        'ToggleOperationResult': 'toggle_algebra.ToggleAlgebraOperationResult', # Corrected name from ToggleOperationResult
         'HexDictionary': 'hex_dictionary.HexDictionary',
         'RGDLEngine': 'rgdl_engine.RGDLEngine',
         'NuclearRealm': 'nuclear_realm.NuclearRealm',
@@ -68,25 +70,22 @@ class UBPClassRegistry:
         'GLRMetrics': 'glr_error_correction.GLRMetrics', # New path
         'ErrorCorrectionResult': 'glr_error_correction.ErrorCorrectionResult', # New path
         'LatticeStructure': 'glr_error_correction.LatticeStructure', # New path
-        'AutomaticRealmSelector': 'realms.AutomaticRealmSelector', # NEW: Moved here from realm_selector.py
-        'DataCharacteristics': 'realms.DataCharacteristics', # NEW: Moved here from realm_selector.py
-        'RealmScore': 'realms.RealmScore', # NEW: Moved here from realm_selector.py
-        'RealmSelectionResult': 'realms.RealmSelectionResult' # NEW: Moved here from realm_selector.py
     }
     
     # Configuration Classes
     CONFIG_CLASSES = {
-        'HardwareProfile': 'hardware_profiles.HardwareProfile',
-        'HardwareManager': 'hardware_profiles.HardwareManager',
+        'HardwareProfile': 'hardware_profiles.HardwareProfile', # Re-added based on existence in hardware_profiles.py
+        'HardwareProfileManager': 'hardware_profiles.HardwareProfileManager', # Re-added based on existence in hardware_profiles.py
         'UBPConfig': 'ubp_config.UBPConfig',
         'BitfieldConfig': 'ubp_config.BitfieldConfig',
         'RealmConfig': 'ubp_config.RealmConfig',
         'CRVConfig': 'ubp_config.CRVConfig',
-        'HTRConfig': 'ubp_config.HTRConfig',
         'ErrorCorrectionConfig': 'ubp_config.ErrorCorrectionConfig',
-        'PerformanceConfig': 'ubp_config.PerformanceConfig',
+        'PerformanceConfig': 'ubp_config.Performance.PerformanceConfig', # Corrected path
         'ObserverConfig': 'ubp_config.ObserverConfig',
         'TemporalConfig': 'ubp_config.TemporalConfig',
+        'ConstantConfig': 'ubp_config.ConstantConfig', # Re-added ConstantConfig
+        'MoleculeConfig': 'ubp_config.MoleculeConfig', # Re-added MoleculeConfig
     }
     
     # Integration Classes (the main orchestrator)
@@ -146,7 +145,7 @@ class CRVRegistry:
                 geometry=realm_cfg.platonic_solid, # Use platonic_solid for geometry
                 coordination_number=realm_cfg.coordination_number,
                 nrci_baseline=realm_cfg.nrci_baseline,
-                sub_crv_frequencies=realm_cfg.sub_crvs, # Directly from config
+                sub_crv_frequencies=getattr(realm_cfg, 'sub_crvs', []), # Directly from config, with fallback
                 notes=f"Dynamically loaded from UBPConfig for {realm_cfg.name} realm."
             )
         return None
@@ -163,11 +162,11 @@ class CRVRegistry:
         config_instance = get_config()
         constants = config_instance.constants
         cross_realms = {
-            'PI_UNIVERSAL': constants['PI'],
-            'E_OVER_12': constants['E'] / 12, # Derived from E
-            'GOLDEN_RATIO': constants['PHI'],
-            'PI_PHI': constants['PI'] ** constants['PHI'], # Derived
-            'FINE_STRUCTURE_CONSTANT': constants['FINE_STRUCTURE']
+            'PI_UNIVERSAL': constants.PI,
+            'E_OVER_12': constants.E / 12, # Derived from E
+            'GOLDEN_RATIO': constants.GOLDEN_RATIO,
+            'PI_PHI': constants.PI ** constants.GOLDEN_RATIO, # Derived
+            'FINE_STRUCTURE_CONSTANT': constants.FINE_STRUCTURE_CONSTANT
         }
         return cross_realms
 
@@ -207,9 +206,9 @@ class UBPMethodSignatures:
     HTR_PROCESS_SIGNATURE = {
         'method_name': 'process_with_htr',
         'parameters': [
-            ('input_data', 'Any', 'Input data for HTR processing'),
-            ('realm', 'str', 'Target realm'),
-            ('crv_frequency', 'float', 'CRV frequency to use')
+            ('data', 'np.ndarray', 'Input data for HTR processing'), # Changed from input_data to data
+            ('realm', 'Optional[str]', 'Realm to use for processing (optional)'), # Changed from str to Optional[str]
+            ('optimize', 'bool', 'Whether to run CRV optimization before processing') # Changed from crv_frequency to optimize
         ],
         'return_type': 'Dict[str, Any]'
     }
@@ -226,11 +225,11 @@ class UBPSystemConstants:
         config_instance = get_config()
         constants = config_instance.constants
         return {
-            'speed_of_light': constants['SPEED_OF_LIGHT'],
-            'planck_constant': constants['PLANCK_CONSTANT'],
-            'fine_structure_constant': constants['FINE_STRUCTURE'],
-            'gravitational_constant': constants['GRAVITATIONAL_CONSTANT'],
-            'elementary_charge': constants['ELEMENTARY_CHARGE']
+            'speed_of_light': constants.SPEED_OF_LIGHT,
+            'planck_constant': constants.PLANCK_CONSTANT,
+            'fine_structure_constant': constants.FINE_STRUCTURE_CONSTANT,
+            'gravitational_constant': constants.GRAVITATIONAL_CONSTANT,
+            'elementary_charge': constants.ELEMENTARY_CHARGE
         }
     
     @classmethod
@@ -238,37 +237,47 @@ class UBPSystemConstants:
         config_instance = get_config()
         constants = config_instance.constants
         return {
-            'pi': constants['PI'],
-            'e': constants['E'],
-            'golden_ratio': constants['PHI'],
-            'pi_phi': constants['PI'] ** constants['PHI'],
-            'e_over_12': constants['E'] / 12,
-            'golden_ratio_reciprocal': constants['GOLDEN_RATIO_RECIPROCAL'],
-            'harmonic_toggle': constants['HARMONIC_TOGGLE']
+            'pi': constants.PI,
+            'e': constants.E,
+            'golden_ratio': constants.GOLDEN_RATIO,
+            'pi_phi': constants.PI ** constants.GOLDEN_RATIO,
+            'e_over_12': constants.E / 12,
         }
     
     @classmethod
     def get_ubp_specific_constants(cls) -> Dict[str, float]:
         config_instance = get_config()
         constants = config_instance.constants
+        temporal_config = config_instance.temporal
+        
+        # Safely get zitterbewegung_frequency if nuclear realm exists
+        nuclear_realm_crv = config_instance.realms.get('nuclear')
+        zitter_freq = nuclear_realm_crv.main_crv if nuclear_realm_crv else 1.2356e20 # Fallback to common value
+
         return {
-            'c_infinity': constants['C_INFINITY'],
-            'offbit_energy_unit': constants['OFFBIT_ENERGY_UNIT'],
-            'epsilon_ubp': constants['EPSILON_UBP'],
-            'coherent_sync_cycle': constants['CSC_PERIOD'],
-            'tautfluence_time': config_instance.temporal.tautfluence_time,
-            'zitterbewegung_frequency': config_instance.realms.get('nuclear', RealmConfig(name='dummy', platonic_solid='', coordination_number=0, main_crv=0.0, sub_crvs=[], wavelength=0.0, spatial_coherence=0.0, temporal_coherence=0.0, nrci_baseline=0.0, lattice_type='', optimization_factor=0.0)).main_crv # Pull from nuclear realm CRV
+            'c_infinity': constants.C_INFINITY,
+            'offbit_energy_unit': constants.OFFBIT_ENERGY_UNIT,
+            'epsilon_ubp': constants.EPSILON_UBP,
+            'coherent_sync_cycle': temporal_config.COHERENT_SYNCHRONIZATION_CYCLE_PERIOD,
+            'bittime_unit_duration': temporal_config.BITTIME_UNIT_DURATION, # Added this constant
+            'tautfluence_time': UBPConstants.TAUTFLUENCE_TIME_SECONDS, # From system_constants.py directly
+            'zitterbewegung_frequency': zitter_freq 
         }
     
     @classmethod
     def get_nrci_targets(cls) -> Dict[str, float]:
         config_instance = get_config()
+        performance = config_instance.performance
+        
+        # Safely get optical NRCI baseline if realm exists
+        optical_realm = config_instance.realms.get('optical')
+        optical_nrci = optical_realm.nrci_baseline if optical_realm else 0.9999999
+        
         return {
-            'standard': config_instance.performance.target_nrci,
-            'coherence_threshold': config_instance.performance.coherence_threshold,
-            'coherence_pressure_min': config_instance.performance.coherence_pressure_min,
-            'minimum_stability': config_instance.performance.min_stability,
-            'photonics': config_instance.realms.get('optical').nrci_baseline if 'optical' in config_instance.realms else 0.9999999,
+            'standard': performance.TARGET_NRCI,
+            'coherence_threshold': performance.COHERENCE_THRESHOLD,
+            'minimum_stability': performance.MIN_STABILITY,
+            'photonics': optical_nrci,
             'error_correction_base_score': config_instance.error_correction.nrci_base_score
         }
     
@@ -277,34 +286,44 @@ class UBPSystemConstants:
         config_instance = get_config()
         ranges = {}
         for realm_name, realm_cfg in config_instance.realms.items():
-            if realm_cfg.frequency_range and len(realm_cfg.frequency_range) == 2:
-                ranges[realm_name] = tuple(realm_cfg.frequency_range)
+            if hasattr(realm_cfg, 'frequency_range') and isinstance(realm_cfg.frequency_range, tuple) and len(realm_cfg.frequency_range) == 2 and realm_cfg.frequency_range[0] < realm_cfg.frequency_range[1]:
+                ranges[realm_name] = realm_cfg.frequency_range
             else:
-                ranges[realm_name] = (0.0, 0.0)
+                ranges[realm_name] = (0.0, 0.0) # Default if not found or malformed
         return ranges
 
     @classmethod
     def get_hardware_offbits_defaults(cls) -> Dict[str, Tuple[int, ...]]: # Changed return type to tuple for dimensions
         config_instance = get_config()
+        bitfield_config = config_instance.bitfield
         return {
-            'mobile': config_instance.bitfield.size_mobile,
-            'colab': config_instance.bitfield.size_colab,
-            'kaggle': config_instance.bitfield.size_kaggle,
-            'raspberry_pi': config_instance.bitfield.size_mobile, # Assuming mobile config for Pi
-            'desktop': config_instance.bitfield.size_local,
-            'production': config_instance.bitfield.size_production,
+            'mobile': bitfield_config.size_mobile,
+            'colab': bitfield_config.size_colab,
+            'kaggle': bitfield_config.size_kaggle,
+            'raspberry_pi': bitfield_config.size_raspberry_pi, # Explicitly use raspberry_pi config
+            'local': bitfield_config.size_local,
+            'production': bitfield_config.size_production,
             'current_environment': config_instance.get_bitfield_dimensions() # Get dimensions for current environment
         }
 
     @classmethod
     def get_error_correction_params(cls) -> Dict[str, Any]: # Changed to Any for mixed types
         config_instance = get_config()
+        error_correction_config = config_instance.error_correction
+        
+        def parse_code(code_str: str) -> Tuple[int, int]:
+            try:
+                n, k = map(int, code_str.split(','))
+                return (n, k)
+            except (ValueError, AttributeError):
+                return (0, 0) # Default invalid
+        
         return {
-            'golay_code': tuple(map(int, config_instance.error_correction.golay_code.split(','))),
-            'bch_code': tuple(map(int, config_instance.error_correction.bch_code.split(','))),
-            'hamming_code': tuple(map(int, config_instance.error_correction.hamming_code.split(','))),
-            'padic_prime': config_instance.error_correction.padic_prime,
-            'fibonacci_depth': config_instance.error_correction.fibonacci_depth
+            'golay_code': parse_code(error_correction_config.golay_code),
+            'bch_code': parse_code(error_correction_config.bch_code),
+            'hamming_code': parse_code(error_correction_config.hamming_code),
+            'padic_prime': error_correction_config.padic_prime,
+            'fibonacci_depth': error_correction_config.fibonacci_depth
         }
 
 # ============================================================================
@@ -378,15 +397,19 @@ def get_class_import_statement(class_name: str) -> Optional[str]:
 # Updated list of available modules reflecting the changes
 UBP_AVAILABLE_MODULES = [
     'bittime_mechanics.py', 'hex_dictionary.py', 'nuclear_realm.py',
-    'optical_realm.py', 'realms.py', 'rgdl_engine.py', 'rune_protocol.py', # realm_selector.py and automatic_realm_selector.py removed
+    'optical_realm.py', 'realms.py', 'rgdl_engine.py', 'rune_protocol.py',
     'toggle_algebra.py', 'core_v2.py', 
     'ubp_framework_v3.py', # Renamed main orchestrator
     'crv_database.py', 'hardware_profiles.py', 'system_constants.py', 'ubp_config.py',
     'ubp_reference_sheet.py', 'test_ubp_v31_validation.py', 'UBP_Test_Drive_HexDictionary_Element_Storage.py',
     'UBP_Test_Drive_Complete_Periodic_Table_118_Elements.py', 'UBP_Test_Drive_Material_Research_Resonant_Steel.py',
-    'install_deps.py', 'htr_engine.py', 'offbit.py', 'bits.py',
+    'install_deps.py', 'htr_engine.py', 'bits.py', # Removed offbit.py
+    'offbit_utils.py', # Added offbit_utils.py
     'glr_error_correction.py', # New module for GLR framework
-    'enhanced_crv_selector.py' # Added explicitely as it contains new classes
+    'enhanced_crv_selector.py', # Added explicitely as it contains new classes
+    'hex_dictionary_persistent.py', # Added this for consistency with provided files
+    'clear_hex_dictionary.py', # Added this for consistency with provided files
+    'verify_storage.py' # Added this for consistency with provided files
 ]
 
 def validate_system_integrity() -> Dict[str, bool]:
@@ -421,11 +444,11 @@ def validate_crv_configuration() -> Dict[str, Any]:
     validation_results = {
         'total_realms': len(config_instance.realms),
         'total_main_crvs': len(CRVRegistry.get_all_main_crvs_summary()),
-        'total_sub_crvs': sum(len(realm_cfg.sub_crvs) for realm_cfg in config_instance.realms.values()),
+        'total_sub_crvs': sum(len(getattr(realm_cfg, 'sub_crvs', [])) for realm_cfg in config_instance.realms.values()),
         'cross_realm_frequencies_count': len(CRVRegistry.get_cross_realm_frequencies_summary()),
-        'pi_integration': config_instance.constants['PI'] == np.pi,
+        'pi_integration': config_instance.constants.PI == np.pi, # Use dot notation
         'frequency_ranges_valid': all(
-            len(realm_cfg.frequency_range) == 2 and realm_cfg.frequency_range[0] < realm_cfg.frequency_range[1]
+            hasattr(realm_cfg, 'frequency_range') and isinstance(realm_cfg.frequency_range, tuple) and len(realm_cfg.frequency_range) == 2 and realm_cfg.frequency_range[0] < realm_cfg.frequency_range[1]
             for realm_cfg in config_instance.realms.values()
         )
     }
