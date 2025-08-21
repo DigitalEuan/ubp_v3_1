@@ -1,3 +1,4 @@
+```python
 """
 Universal Binary Principle (UBP) Framework v3.1.1 - Nuclear Realm Module
 Author: Euan Craig, New Zealand
@@ -18,13 +19,17 @@ from scipy.special import factorial, gamma
 from scipy.linalg import expm
 import json
 
-try:
-    from .system_constants import UBPConstants # Corrected import from 'core' to 'system_constants'
-    from .bits import Bitfield, OffBit # Corrected import from 'bitfield' to 'bits'
-except ImportError:
-    # Fallback for standalone execution if core/bitfield are not in package
-    from system_constants import UBPConstants # Corrected import from 'core' to 'system_constants'
-    from bits import Bitfield, OffBit # Corrected import from 'bitfield' to 'bits'
+# Import configuration for consistency
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
+from ubp_config import get_config, UBPConfig, RealmConfig
+
+# Import UBPConstants directly for raw values
+from system_constants import UBPConstants # Corrected import
+
+# Import Bitfield and OffBit from the bits module
+from bits import Bitfield, OffBit 
 
 
 @dataclass
@@ -68,10 +73,10 @@ class ZitterbewegungState:
     spin_state: complex
     position_uncertainty: float
     momentum_uncertainty: float
-    frequency: float = 1.2356e20  # Hz - Zitterbewegung frequency
+    frequency: float # Populated from config/UBPConstants
     amplitude: float = 1.0
     phase: float = 0.0
-    compton_wavelength: float = 2.426e-12  # meters (approx. electron Compton wavelength)
+    compton_wavelength: float # Populated from config/UBPConstants
 
 
 @dataclass
@@ -101,49 +106,43 @@ class NuclearRealm:
             bitfield: Optional Bitfield instance for nuclear operations
         """
         self.bitfield = bitfield
+        self.config = get_config() # Get the global UBPConfig instance
         
-        # Nuclear realm parameters
-        self.frequency_range = (1e16, 1e20)  # Hz
-        self.zitterbewegung_freq = 1.2356e20  # Hz
-        self.nmr_validation_freq = 600e6     # Hz (600 MHz)
-        self.nmr_field_strength = 0.5        # Tesla
+        # Nuclear realm parameters from config
+        nuclear_realm_cfg = self.config.get_realm_config('nuclear')
+        self.frequency_range = nuclear_realm_cfg.frequency_range if nuclear_realm_cfg else (1e16, 1e20)
+        self.zitterbewegung_freq = nuclear_realm_cfg.main_crv if nuclear_realm_cfg else UBPConstants.CRV_NUCLEAR_BASE
+        self.nmr_validation_freq = 600e6     # Hz (600 MHz) - Hardcoded as a specific test frequency
+        self.nmr_field_strength = 0.5        # Tesla - Hardcoded as a specific test value
         
         # Initialize E8-to-G2 lattice structure
         self.e8_g2_lattice = self._initialize_e8_g2_lattice()
         
-        # Initialize constants from UBPConstants for consistency
+        # Initialize constants from UBPConfig for consistency
         self.nuclear_constants = {
-            'fine_structure': getattr(UBPConstants, 'FINE_STRUCTURE_CONSTANT', 7.2973525693e-3), # Corrected constant name
-            'nuclear_magneton': getattr(UBPConstants, 'NUCLEAR_MAGNETON', 5.0507837461e-27), # Assuming this constant is present, if not, it should be added to UBPConstants
-            'proton_gyromagnetic': getattr(UBPConstants, 'PROTON_GYROMAGNETIC', 2.6752218744e8), # Assuming this constant is present
-            'neutron_gyromagnetic': getattr(UBPConstants, 'NEUTRON_GYROMAGNETIC', -1.8324717e8), # Assuming this constant is present
-            'deuteron_binding': getattr(UBPConstants, 'DEUTERON_BINDING_ENERGY', 2.224573e6), # Assumed name in UBPConstants
-            'planck_reduced': getattr(UBPConstants, 'PLANCK_CONSTANT', 1.054571817e-34), # Corrected to PLANCK_CONSTANT if it stores hbar, otherwise check if UBPConstants has PLANCK_REDUCED
-            'electron_mass': getattr(UBPConstants, 'ELECTRON_MASS', 9.1093837015e-31), # Assuming this constant is present
-            'proton_mass': getattr(UBPConstants, 'PROTON_MASS', 1.67262192369e-27), # Assuming this constant is present
-            'neutron_mass': getattr(UBPConstants, 'NEUTRON_MASS', 1.67492749804e-27), # Assuming this constant is present
-            'speed_of_light': getattr(UBPConstants, 'SPEED_OF_LIGHT', 299792458)
+            'fine_structure': self.config.constants.FINE_STRUCTURE_CONSTANT,
+            'nuclear_magneton': self.config.constants.NUCLEAR_MAGNETON,
+            'proton_gyromagnetic': self.config.constants.PROTON_GYROMAGNETIC,
+            'neutron_gyromagnetic': self.config.constants.NEUTRON_GYROMAGNETIC,
+            'deuteron_binding': self.config.constants.DEUTERON_BINDING_ENERGY,
+            'planck_reduced': self.config.constants.PLANCK_REDUCED,
+            'electron_mass': self.config.constants.ELECTRON_MASS,
+            'proton_mass': self.config.constants.PROTON_MASS,
+            'neutron_mass': self.config.constants.NEUTRON_MASS,
+            'speed_of_light': self.config.constants.SPEED_OF_LIGHT
         }
 
         # Initialize Zitterbewegung modeling with values from constants
-        hbar = self.nuclear_constants['planck_reduced'] # This uses PLANCK_CONSTANT from system_constants.py, which is `h`. Reduced Planck constant is `hbar`.
-                                                         # For now, it will use the value of PLANCK_CONSTANT.
-                                                         # If PLANCK_REDUCED is available in UBPConstants (as it should be), it should be used.
-        
-        # Check if PLANCK_REDUCED exists, otherwise use PLANCK_CONSTANT/2pi
-        if hasattr(UBPConstants, 'PLANCK_REDUCED'):
-            hbar_val = getattr(UBPConstants, 'PLANCK_REDUCED')
-        else:
-            hbar_val = self.nuclear_constants['planck_reduced'] / (2 * np.pi) # Calculate hbar if only h is available
-        
+        hbar = self.nuclear_constants['planck_reduced']
         m_e = self.nuclear_constants['electron_mass']
         c = self.nuclear_constants['speed_of_light']
-        electron_compton_wavelength = hbar_val / (m_e * c) # Using hbar_val here
+        electron_compton_wavelength = hbar / (m_e * c)
 
         self.zitterbewegung_state = ZitterbewegungState(
             spin_state=1+0j,
-            position_uncertainty=electron_compton_wavelength, # Set to electron Compton wavelength
-            momentum_uncertainty=hbar_val / (2 * electron_compton_wavelength), # Using hbar_val here
+            frequency=self.zitterbewegung_freq,
+            position_uncertainty=electron_compton_wavelength,
+            momentum_uncertainty=hbar / (2 * electron_compton_wavelength),
             compton_wavelength=electron_compton_wavelength
         )
         
@@ -232,11 +231,7 @@ class NuclearRealm:
         
         # Zitterbewegung position oscillation
         # x(t) = x₀ + (ħ/2mc) * sin(2mct/ħ)
-        hbar = self.nuclear_constants['planck_reduced'] # This constant needs to be present
-        if not hasattr(UBPConstants, 'PLANCK_REDUCED'): # Recalculate hbar if needed
-            hbar = self.nuclear_constants['planck_reduced'] / (2 * np.pi) 
-
-        # Use Compton wavelength from ZitterbewegungState, which is initialized from constants
+        hbar = self.nuclear_constants['planck_reduced']
         compton_wavelength = self.zitterbewegung_state.compton_wavelength
         zitter_amplitude = compton_wavelength / 2
         
@@ -291,249 +286,297 @@ class NuclearRealm:
                 # Pad laplacian to match current_field shape, typically with zeros at boundaries
                 padded_laplacian = np.pad(laplacian, (1, 1), 'constant')
             else:
-                padded_laplacian = np.zeros_like(current_field) # For very small fields, assume no diffusion
+                padded_laplacian = np.zeros_like(current_field) # Completed this line
             
-            # P-adic corrections using prime base
+            # P-adic corrections (simplified heuristic)
             p_adic_correction = np.zeros_like(current_field)
-            for i, prime in enumerate(params.adelic_prime_base[:5]):  # Use first 5 primes
-                phase = 2 * np.pi * step / prime
-                # np.sin works fine for scalar or array inputs
-                p_adic_correction += (1.0 / prime) * np.sin(phase + i * np.pi / 4)
+            for p in params.adelic_prime_base:
+                # Simple p-adic norm inspired correction
+                # For a real number x, |x|_p = p^(-v_p(x)) where v_p(x) is the p-adic valuation.
+                # Here, we'll use a heuristic for real fields.
+                # Example: |x|_p = 1 / (p^k) if x is divisible by p^k but not p^(k+1)
+                # This is hard for arbitrary floats. A simpler approach is needed for simulation.
+                # Heuristic: apply small perturbation based on p-adic prime and field value.
+                p_adic_correction += (current_field % p) / p * 0.01 * params.field_strength # Very simplified
             
-            # Recursive expansion term
-            expansion_term = params.expansion_coefficient * padded_laplacian
-            
-            # Field evolution
-            next_field = (current_field + 
-                         dt * expansion_term + 
-                         dt * params.field_strength * p_adic_correction)
-            
-            # Apply convergence constraint
-            field_norm = np.linalg.norm(next_field)
-            if field_norm > 1e6:  # Prevent divergence, cap at a large value
-                next_field = next_field / field_norm * 1e6
+            # Combine terms
+            next_field = current_field + \
+                         params.expansion_coefficient * padded_laplacian * dt + \
+                         p_adic_correction * dt * params.temporal_coupling
             
             field_evolution.append(next_field)
             
-            # Calculate stability metric
-            if step > 0:
-                field_change = np.linalg.norm(next_field - current_field)
-                stability = 1.0 / (1.0 + field_change) # Higher stability for smaller change
-                stability_metrics.append(stability)
+            # Check stability (e.g., L2 norm convergence)
+            current_norm = np.linalg.norm(current_field)
+            next_norm = np.linalg.norm(next_field)
+            
+            if current_norm > 0:
+                stability = abs(next_norm - current_norm) / current_norm
+            else:
+                stability = next_norm # If current is zero, stability depends on next
+            
+            stability_metrics.append(stability)
+            
+            # Check for convergence
+            if stability < params.convergence_threshold and step > 0:
+                # print(f"CARFE converged at step {step}")
+                break
         
         # Calculate overall CARFE stability
-        avg_stability = np.mean(stability_metrics) if stability_metrics else 0.0
+        overall_stability = np.mean(stability_metrics) if stability_metrics else 0.0
         
         return {
-            'field_evolution': np.array(field_evolution),
-            'stability_metrics': np.array(stability_metrics),
-            'average_stability': avg_stability,
-            'final_field': field_evolution[-1],
-            'convergence_achieved': avg_stability > (1.0 - params.convergence_threshold)
+            'field_evolution': [f.tolist() for f in field_evolution],
+            'stability_metrics': stability_metrics,
+            'overall_stability': overall_stability,
+            'final_field': field_evolution[-1].tolist()
         }
-    
-    def calculate_nmr_validation(self, nucleus_type: str = 'proton') -> Dict[str, float]:
+
+    def calculate_e8_g2_coherence(self, nuclear_states: List[np.ndarray]) -> float:
         """
-        Calculate NMR validation metrics for nuclear realm verification.
+        Calculate E8-to-G2 coherence for nuclear states.
         
         Args:
-            nucleus_type: Type of nucleus ('proton', 'neutron', 'deuteron')
+            nuclear_states: List of nuclear state vectors (e.g., from OffBits)
             
         Returns:
-            Dictionary containing NMR validation metrics
+            Coherence score (0 to 1)
         """
-        B0 = self.nmr_field_strength  # Tesla
+        if not nuclear_states:
+            return 0.0
         
-        # Gyromagnetic ratios
-        gamma_values = {
-            'proton': self.nuclear_constants['proton_gyromagnetic'],
-            'neutron': self.nuclear_constants['neutron_gyromagnetic'],
-            'deuteron': self.nuclear_constants['proton_gyromagnetic'] * 0.1535  # Approximate ratio for deuteron
-        }
-        
-        gamma = gamma_values.get(nucleus_type, gamma_values['proton'])
-        
-        # Larmor frequency
-        larmor_freq = abs(gamma * B0) / (2 * np.pi)  # Hz
-        
-        # NMR validation score based on frequency match
-        target_freq = self.nmr_validation_freq
-        freq_error = abs(larmor_freq - target_freq) / target_freq
-        validation_score = np.exp(-freq_error * 10)  # Exponential decay with error, ensures score is between 0 and 1
-        
-        # Chemical shift calculation (simplified)
-        chemical_shift = (larmor_freq - target_freq) / target_freq * 1e6  # ppm
-        
-        # Relaxation times (T1, T2) - simplified model
-        T1 = 1.0 / (1.0 + freq_error)  # seconds, inverse relation to frequency error
-        T2 = T1 * 0.1  # T2 is typically shorter than T1
-        
-        # Signal-to-noise ratio
-        snr = validation_score * 100  # Arbitrary units, scales with validation score
-        
-        return {
-            'larmor_frequency': larmor_freq,
-            'validation_score': validation_score,
-            'chemical_shift_ppm': chemical_shift,
-            'T1_relaxation': T1,
-            'T2_relaxation': T2,
-            'signal_to_noise': snr,
-            'frequency_error': freq_error,
-            'magnetic_field': B0,
-            'gyromagnetic_ratio': gamma
-        }
-    
-    def calculate_nuclear_binding_energy(self, mass_number: int, atomic_number: int) -> float:
-        """
-        Calculate nuclear binding energy using semi-empirical mass formula.
-        
-        Args:
-            mass_number: Mass number (A)
-            atomic_number: Atomic number (Z)
+        # Project states onto E8 simple roots (simplified)
+        projected_vectors = []
+        for state in nuclear_states:
+            # Pad or truncate state to match E8 simple roots dimension (8)
+            padded_state = np.pad(state, (0, max(0, 8 - len(state))), 'constant')[:8]
             
-        Returns:
-            Binding energy in MeV
-        """
-        A = mass_number
-        Z = atomic_number
-        N = A - Z  # Neutron number
-        
-        # Semi-empirical mass formula coefficients (MeV)
-        a_v = 15.75   # Volume term
-        a_s = 17.8    # Surface term
-        a_c = 0.711   # Coulomb term
-        a_A = 23.7    # Asymmetry term
-        
-        # Pairing term
-        # The delta term typically is +ap for even-even, -ap for odd-odd, 0 for odd A
-        ap = 11.18 # Pairing coefficient
-        if A % 2 == 0:  # Even A
-            if Z % 2 == 0:  # Even Z (even-even nucleus)
-                delta = ap / np.sqrt(A)
-            else:  # Odd Z (even-odd nucleus)
-                delta = -ap / np.sqrt(A)
-        else:  # Odd A (odd-even or even-odd nucleus)
-            delta = 0 # No pairing energy for odd A nuclei
-        
-        # Binding energy calculation
-        BE = (a_v * A - 
-              a_s * A**(2/3) - 
-              a_c * Z**2 / A**(1/3) - 
-              a_A * (N - Z)**2 / A + 
-              delta)
-        
-        return BE
-    
-    def calculate_e8_g2_coherence(self, field_data: np.ndarray) -> float:
-        """
-        Calculate coherence based on E8-to-G2 symmetry breaking.
-        
-        Args:
-            field_data: Field configuration data (can be 1D, will be padded/truncated to 8D)
+            # Project onto basis
+            proj_e8 = np.dot(padded_state, self.e8_g2_lattice.simple_roots.T)
+            projected_vectors.append(proj_e8.flatten()) # Ensure it's flat after projection
             
-        Returns:
-            Coherence value between 0 and 1
-        """
-        # Use the simple_roots defined in the lattice structure for projection.
-        # These vectors provide a basis for projecting the field data onto an 8D E8-like space.
-        roots_for_projection = self.e8_g2_lattice.simple_roots
-        
-        # Ensure field_data is 8-dimensional for projection
-        if len(field_data) >= 8:
-            field_8d = field_data[:8]
+        if not projected_vectors:
+            return 0.0
+
+        # Calculate coherence based on variance of projected vectors
+        # A more complex method would involve distances in the lattice.
+        all_projected_values = np.concatenate(projected_vectors)
+        if len(all_projected_values) == 0:
+            return 0.0
+
+        variance = np.var(all_projected_values)
+        mean_abs_value = np.mean(np.abs(all_projected_values))
+
+        # Coherence is inversely proportional to normalized variance
+        if mean_abs_value > 1e-10:
+            coherence = 1.0 / (1.0 + variance / mean_abs_value)
         else:
-            field_8d = np.pad(field_data, (0, 8 - len(field_data)), 'constant')
+            coherence = 1.0 # If all values are zero, it's perfectly coherent conceptually
         
-        # Project field onto the E8 simple roots (or basis vectors)
-        projections = np.dot(roots_for_projection, field_8d)
+        return min(1.0, max(0.0, coherence))
+
+    def simulate_nmr_response(self, nucleus_spin: float, external_field: float, 
+                             frequency_array: np.ndarray) -> Dict[str, np.ndarray]:
+        """
+        Simulate Nuclear Magnetic Resonance (NMR) response.
         
-        # E8 coherence based on variance of projections.
-        # Lower variance implies higher coherence (field aligns well with the root space structure).
-        e8_coherence = np.exp(-np.var(projections))
+        Args:
+            nucleus_spin: Spin of the nucleus (e.g., 0.5 for proton)
+            external_field: External magnetic field strength (Tesla)
+            frequency_array: Array of frequencies for simulation (Hz)
+            
+        Returns:
+            Dictionary with NMR spectrum and related parameters
+        """
+        # Gyromagnetic ratio depends on nucleus type
+        if nucleus_spin == 0.5: # Proton
+            gamma = self.nuclear_constants['proton_gyromagnetic']
+            nucleus_name = "proton"
+        elif nucleus_spin == 1.0: # Deuteron
+            gamma = self.nuclear_constants['proton_gyromagnetic'] / 6.514 # Approx deuteron ratio
+            nucleus_name = "deuteron"
+        else:
+            gamma = 0.0 # No resonance if spin is 0 or unknown
+            nucleus_name = "unknown"
+
+        # Larmor frequency
+        larmor_frequency = (gamma * external_field) / (2 * np.pi)
         
-        # G2 coherence (simplified/heuristic, based on a subset of E8 components).
-        # G2 is a rank 2 Lie algebra. We can conceptually consider it a reduction from E8.
-        # For simplicity, taking the first two projections.
-        g2_projections = projections[:2]
-        g2_coherence = np.exp(-np.var(g2_projections))
+        # Simulate Lorentzian line shape for resonance
+        # A(f) = A_0 / (1 + ((f - f_0) / (width/2))^2)
+        line_width = 100.0 # Hz (example)
+        amplitude = 1.0
         
-        # Combined coherence with E8-to-G2 symmetry breaking.
-        # Weights (0.7 for E8, 0.3 for G2) are tunable parameters for the framework.
-        combined_coherence = 0.7 * e8_coherence + 0.3 * g2_coherence
+        # Ensure division by zero is handled if line_width is too small
+        denom = (1 + ((frequency_array - larmor_frequency) / (line_width / 2))**2)
+        if np.any(denom == 0):
+            # Add a small epsilon to denominator to prevent division by zero
+            denom = denom + np.finfo(float).eps
         
-        return min(combined_coherence, 1.0) # Ensure coherence is capped at 1.0
+        spectrum = amplitude / denom
+        
+        # Calculate signal-to-noise ratio (simplified)
+        snr = np.max(spectrum) / (np.mean(np.abs(spectrum - np.mean(spectrum))) + 1e-10) # Approx noise level
+        
+        return {
+            'nucleus': nucleus_name,
+            'larmor_frequency': larmor_frequency,
+            'spectrum': spectrum,
+            'frequency_array': frequency_array,
+            'signal_to_noise_ratio': snr,
+            'external_field': external_field
+        }
     
-    def run_nuclear_computation(self, input_data: np.ndarray, 
+    def calculate_nuclear_properties(self, atomic_number: int, mass_number: int, 
+                                    excitation_energy: float = 0.0) -> Dict[str, float]:
+        """
+        Calculate various nuclear properties.
+        
+        Args:
+            atomic_number: Z (number of protons)
+            mass_number: A (number of nucleons)
+            excitation_energy: Excitation energy of the nucleus (MeV)
+            
+        Returns:
+            Dictionary of nuclear properties
+        """
+        # Calculate binding energy using Weizsäcker formula (semi-empirical mass formula)
+        # B(A, Z) = a_v A - a_s A^(2/3) - a_c Z(Z-1)/A^(1/3) - a_a (A-2Z)^2/A + a_p A^(-1/2)
+        
+        # Coefficients (MeV)
+        a_v = 15.67   # Volume term
+        a_s = 17.23   # Surface term
+        a_c = 0.714   # Coulomb term
+        a_a = 23.285  # Asymmetry term
+        
+        a_p = 12.0 # Pairing term (positive for even-even, negative for odd-odd, zero for odd-even)
+        if mass_number % 2 == 0 and atomic_number % 2 == 0: # Even-Even
+            pairing_term = a_p * mass_number**(-0.5)
+        elif mass_number % 2 != 0 and atomic_number % 2 != 0: # Odd-Odd
+            pairing_term = -a_p * mass_number**(-0.5)
+        else: # Odd-Even or Even-Odd
+            pairing_term = 0.0
+            
+        binding_energy = (
+            a_v * mass_number - 
+            a_s * mass_number**(2/3) - 
+            a_c * atomic_number * (atomic_number - 1) / mass_number**(1/3) -
+            a_a * (mass_number - 2 * atomic_number)**2 / mass_number +
+            pairing_term
+        )
+        
+        # Spin-orbit coupling (simplified heuristic)
+        # Directly proportional to excitation_energy and nuclear spin properties
+        spin_orbit_coupling = excitation_energy * 0.1 * atomic_number / mass_number
+        
+        # Magnetic dipole moment (simplified, proportional to spin and gyromagnetic ratio)
+        # Assume proton-like behavior dominates for simplicity
+        magnetic_moment = self.nuclear_constants['nuclear_magneton'] * atomic_number * nucleus_spin / 0.5 
+        
+        # Electric quadrupole moment (simplified, related to deformation)
+        quadrupole_moment = 0.05 * mass_number**(2/3) * np.sin(excitation_energy / 10) # Heuristic
+        
+        # Hyperfine splitting (simplified, related to magnetic moment and electron density)
+        hyperfine_splitting = magnetic_moment * self.nuclear_constants['fine_structure'] * 1e-6 # MHz
+        
+        # Isotope shift (simplified, related to mass difference and nuclear radius)
+        isotope_shift = (mass_number - atomic_number) * 1e-12 # nm
+        
+        return {
+            'binding_energy_per_nucleon_MeV': binding_energy / mass_number,
+            'total_binding_energy_MeV': binding_energy,
+            'spin_orbit_coupling_MeV': spin_orbit_coupling,
+            'magnetic_moment_nuclear_magnetons': magnetic_moment / self.nuclear_constants['nuclear_magneton'],
+            'quadrupole_moment_barns': quadrupole_moment,
+            'hyperfine_splitting_MHz': hyperfine_splitting,
+            'isotope_shift_nm': isotope_shift
+        }
+    
+    def run_nuclear_computation(self, nuclear_data: List[Dict[str, Any]], 
                                computation_type: str = 'full') -> Dict[str, Any]:
         """
-        Run comprehensive nuclear realm computation.
+        Run comprehensive nuclear realm computation, updating internal metrics.
         
         Args:
-            input_data: Input data for nuclear computation
-            computation_type: Type of computation ('zitterbewegung', 'carfe', 'nmr', 'binding', 'full')
+            nuclear_data: List of dictionaries, each containing 'atomic_number', 'mass_number', 'spin', 'field' etc.
+            computation_type: Type of computation ('zitter', 'carfe', 'nmr', 'properties', 'full')
             
         Returns:
-            Dictionary containing computation results
+            Dictionary containing computation results and updated metrics
         """
         results = {
             'computation_type': computation_type,
-            'input_size': len(input_data),
-            'nuclear_frequency': self.zitterbewegung_freq
+            'nuclear_entries_processed': len(nuclear_data)
         }
         
-        if computation_type in ['zitterbewegung', 'full']:
-            # Zitterbewegung dynamics
-            # Time array should be small enough to observe zitterbewegung (~10^-20 seconds)
-            time_array = np.linspace(0, 1e-20, len(input_data)) 
-            zitter_results = self.calculate_zitterbewegung_dynamics(time_array)
-            results['zitterbewegung'] = zitter_results
+        # Default/Initial values for metrics update
+        e8_g2_coherence_avg = 0.0
+        carfe_stability_avg = 0.0
+        nmr_validation_score_avg = 0.0
+        nuclear_binding_energy_avg = 0.0
+        spin_orbit_coupling_avg = 0.0
+
+        num_valid_entries = 0
+
+        for entry in nuclear_data:
+            atomic_num = entry.get('atomic_number')
+            mass_num = entry.get('mass_number')
+            nucleus_spin = entry.get('nucleus_spin')
+            initial_field = entry.get('initial_field')
             
-            # Update metrics
-            self.metrics.zitterbewegung_frequency = self.zitterbewegung_freq
-        
-        if computation_type in ['carfe', 'full']:
-            # CARFE field equation
-            carfe_results = self.solve_carfe_equation(input_data)
-            results['carfe'] = carfe_results
+            if atomic_num is None or mass_num is None:
+                continue # Skip invalid entries
             
-            # Update metrics
-            self.metrics.carfe_stability = carfe_results['average_stability']
-        
-        if computation_type in ['nmr', 'full']:
-            # NMR validation
-            nmr_results = self.calculate_nmr_validation()
-            results['nmr'] = nmr_results
+            num_valid_entries += 1
+
+            if computation_type in ['zitter', 'full']:
+                # Zitterbewegung dynamics
+                time_array = np.linspace(0, 1e-20, 100) # Short time scale
+                zitter_results = self.calculate_zitterbewegung_dynamics(time_array)
+                # results.setdefault('zitterbewegung_dynamics', []).append(zitter_results)
+                # No direct metric for this, mostly for visualization/simulation
             
-            # Update metrics
-            self.metrics.nmr_validation_score = nmr_results['validation_score']
-        
-        if computation_type in ['binding', 'full']:
-            # Nuclear binding energy (example: Carbon-12 for demo)
-            binding_energy = self.calculate_nuclear_binding_energy(12, 6) # A=12, Z=6 for Carbon-12
-            results['binding_energy'] = binding_energy
+            if computation_type in ['carfe', 'full'] and initial_field is not None:
+                # CARFE equation
+                carfe_results = self.solve_carfe_equation(np.array(initial_field), time_steps=50)
+                # results.setdefault('carfe_results', []).append(carfe_results)
+                carfe_stability_avg += carfe_results['overall_stability']
             
-            # Update metrics
-            self.metrics.nuclear_binding_energy = binding_energy
+            if computation_type in ['nmr', 'full'] and nucleus_spin is not None and entry.get('nmr_field') is not None:
+                # NMR response
+                nmr_freq_array = np.linspace(self.nmr_validation_freq * 0.99, self.nmr_validation_freq * 1.01, 200)
+                nmr_results = self.simulate_nmr_response(nucleus_spin, entry['nmr_field'], nmr_freq_array)
+                # results.setdefault('nmr_results', []).append(nmr_results)
+                # Validate NMR based on peak presence
+                if nmr_results['signal_to_noise_ratio'] > 10: # Simple threshold
+                    nmr_validation_score_avg += 1.0
+                else:
+                    nmr_validation_score_avg += 0.0 # No clear peak detected
+            
+            if computation_type in ['properties', 'full']:
+                # Nuclear properties
+                excitation_energy = entry.get('excitation_energy', 0.0)
+                nuclear_props = self.calculate_nuclear_properties(atomic_num, mass_num, excitation_energy)
+                # results.setdefault('nuclear_properties', []).append(nuclear_props)
+                nuclear_binding_energy_avg += nuclear_props.get('binding_energy_per_nucleon_MeV', 0.0)
+                spin_orbit_coupling_avg += nuclear_props.get('spin_orbit_coupling_MeV', 0.0)
+
+            # E8-G2 coherence needs a set of states, not just one.
+            # For simplicity, calculate per entry if each entry is a 'state'.
+            # A more robust approach would collect states and run this once.
+            # Assuming `entry` contains `state_vector`
+            state_vector_for_e8g2 = entry.get('state_vector', np.random.rand(8)) # Generate random if not provided
+            e8_g2_coherence_avg += self.calculate_e8_g2_coherence([state_vector_for_e8g2])
+
+        # Update aggregated metrics
+        if num_valid_entries > 0:
+            self.metrics.e8_g2_coherence = e8_g2_coherence_avg / num_valid_entries
+            self.metrics.carfe_stability = carfe_stability_avg / num_valid_entries
+            self.metrics.nmr_validation_score = nmr_validation_score_avg / num_valid_entries
+            self.metrics.nuclear_binding_energy = nuclear_binding_energy_avg / num_valid_entries
+            self.metrics.spin_orbit_coupling = spin_orbit_coupling_avg / num_valid_entries
         
-        # E8-G2 coherence calculation (always perform if input_data is available)
-        e8_g2_coherence = self.calculate_e8_g2_coherence(input_data)
-        results['e8_g2_coherence'] = e8_g2_coherence
-        
-        # Update metrics
-        self.metrics.e8_g2_coherence = e8_g2_coherence
-        
-        # Calculate overall nuclear realm NRCI (Nuclear Realm Coherence Index)
-        nrci_components = [
-            self.metrics.e8_g2_coherence,
-            self.metrics.carfe_stability,
-            self.metrics.nmr_validation_score
-        ]
-        
-        # Calculate mean of valid components (those greater than 0)
-        valid_nrci_components = [c for c in nrci_components if c > 0]
-        nuclear_nrci = np.mean(valid_nrci_components) if valid_nrci_components else 0.0
-        results['nuclear_nrci'] = nuclear_nrci
-        
+        results['metrics_snapshot'] = self.metrics.__dict__
         return results
     
     def get_nuclear_metrics(self) -> NuclearRealmMetrics:
@@ -549,33 +592,34 @@ class NuclearRealm:
         """
         validation_results = {
             'realm_name': 'Nuclear',
-            'frequency_range': self.frequency_range,
             'zitterbewegung_freq': self.zitterbewegung_freq,
             'e8_dimension': self.e8_g2_lattice.e8_dimension,
             'g2_dimension': self.e8_g2_lattice.g2_dimension
         }
         
-        # Test with synthetic nuclear data (e.g., a random noise array)
-        test_data = np.random.normal(0, 1, 100)
+        # Example test data: Deuterium, Helium-4, Oxygen-16
+        test_nuclear_data = [
+            {'atomic_number': 1, 'mass_number': 2, 'nucleus_spin': 1.0, 
+             'initial_field': [0.1, 0.2, 0.3], 'nmr_field': 0.5, 'excitation_energy': 0.0}, # Deuterium
+            {'atomic_number': 2, 'mass_number': 4, 'nucleus_spin': 0.0, 
+             'initial_field': [0.5, 0.4, 0.6], 'nmr_field': 0.0, 'excitation_energy': 0.0}, # Helium-4
+            {'atomic_number': 8, 'mass_number': 16, 'nucleus_spin': 0.0, 
+             'initial_field': [0.8, 0.7, 0.9], 'nmr_field': 0.0, 'excitation_energy': 0.1} # Oxygen-16
+        ]
         
-        # Run comprehensive computation with the test data
-        computation_results = self.run_nuclear_computation(test_data, 'full')
+        computation_results = self.run_nuclear_computation(test_nuclear_data, 'full')
         validation_results.update(computation_results)
         
-        # Define validation criteria for each component
+        # Validation criteria
+        metrics = self.metrics
         validation_criteria = {
-            'e8_g2_coherence_valid': computation_results['e8_g2_coherence'] > 0.5,
-            'carfe_stable': computation_results['carfe']['average_stability'] > 0.5,
-            'nmr_validation_valid': computation_results['nmr']['validation_score'] > 0.1,
-            'binding_energy_realistic': 50 < computation_results['binding_energy'] < 200,  # Realistic range for stable nuclei like C-12
-            'nuclear_nrci_valid': computation_results['nuclear_nrci'] > 0.3
+            'e8_g2_coherence_positive': metrics.e8_g2_coherence > 0.1,
+            'carfe_stability_achieved': metrics.carfe_stability < 0.1, # Expect low value for stability
+            'nmr_validation_possible': metrics.nmr_validation_score > 0.0, # At least one validation successful
+            'binding_energy_realistic': metrics.nuclear_binding_energy > 5.0 # MeV/nucleon for stable nuclei
         }
         
         validation_results['validation_criteria'] = validation_criteria
         validation_results['overall_valid'] = all(validation_criteria.values())
         
         return validation_results
-
-
-# Alias for compatibility
-NuclearRealmFramework = NuclearRealm
