@@ -1,14 +1,3 @@
-"""
-Universal Binary Principle (UBP) Framework v3.2+ - HexDictionary Module
-Author: Euan Craig, New Zealand
-Date: 20 August 2025
-
-This module implements the HexDictionary, a persistent, content-addressable
-key-value store for the UBP framework. It uses SHA256 hashing for content
-integrity and keys, and supports serialization/deserialization of various
-data types for persistence.
-"""
-
 import hashlib
 import json
 import numpy as np
@@ -16,8 +5,8 @@ import os
 import pickle
 from typing import Any, Dict, Optional, Union
 
-# Define the default directory for TEMPORARY storage for this version of HexDictionary
-DEFAULT_HEX_DICT_STORAGE_DIR = "/output/hex_dictionary_storage/"
+# Define the default directory for PERSISTENT storage for this version of HexDictionary
+DEFAULT_HEX_DICT_STORAGE_DIR = "/persistent_state/hex_dictionary_storage/"
 DEFAULT_HEX_DICT_METADATA_FILE = os.path.join(DEFAULT_HEX_DICT_STORAGE_DIR, "hex_dict_metadata.json")
 
 class HexDictionary:
@@ -25,14 +14,15 @@ class HexDictionary:
     A persistent, content-addressable key-value store.
     Keys are SHA256 hashes of the stored data.
     Supports various data types for serialization.
+    This version is specifically configured for persistent storage.
     """
     def __init__(self, storage_dir: str = DEFAULT_HEX_DICT_STORAGE_DIR, metadata_file: str = DEFAULT_HEX_DICT_METADATA_FILE):
         self.storage_dir = storage_dir
-        self.metadata_file = metadata_file # Now an instance attribute
+        self.metadata_file = metadata_file
         self.entries: Dict[str, Dict[str, Any]] = {}  # Stores {'hash': {'path': 'file', 'type': 'type', 'meta': {}}}
         self._ensure_storage_dir()
         self._load_metadata()
-        print(f"HexDictionary initialized at {self.storage_dir}. Loaded {len(self.entries)} entries.")
+        print(f"Persistent HexDictionary initialized at {self.storage_dir}. Loaded {len(self.entries)} entries.")
 
     def _ensure_storage_dir(self):
         """Ensures the storage directory exists."""
@@ -40,7 +30,7 @@ class HexDictionary:
 
     def _load_metadata(self):
         """Loads the HexDictionary metadata from file."""
-        if os.path.exists(self.metadata_file): # Use instance attribute
+        if os.path.exists(self.metadata_file):
             with open(self.metadata_file, 'r') as f:
                 try:
                     self.entries = json.load(f)
@@ -49,14 +39,14 @@ class HexDictionary:
                         if 'meta' not in value or not isinstance(value['meta'], dict):
                             value['meta'] = {}
                 except json.JSONDecodeError:
-                    print("Warning: HexDictionary metadata file is corrupt. Starting with empty dictionary.")
+                    print("Warning: Persistent HexDictionary metadata file is corrupt. Starting with empty dictionary.")
                     self.entries = {}
         else:
             self.entries = {}
 
     def _save_metadata(self):
         """Saves the HexDictionary metadata to file."""
-        with open(self.metadata_file, 'w') as f: # Use instance attribute
+        with open(self.metadata_file, 'w') as f:
             json.dump(self.entries, f, indent=4)
 
     def _serialize_data(self, data: Any, data_type: str) -> bytes:
@@ -71,17 +61,14 @@ class HexDictionary:
         elif data_type == 'int' or data_type == 'float':
             return str(data).encode('utf-8')
         elif data_type == 'json':
-            # Assumes data is already a JSON string or a dict/list
             if isinstance(data, (dict, list)):
                 return json.dumps(data).encode('utf-8')
-            return data.encode('utf-8') # If it's already a JSON string
+            return data.encode('utf-8')
         elif data_type == 'array' and isinstance(data, np.ndarray):
-            # Use pickle for numpy arrays to preserve dtype and shape
             return pickle.dumps(data)
         elif data_type == 'list' or data_type == 'dict':
             return json.dumps(data).encode('utf-8')
         else:
-            # Default to pickle for complex or unknown types
             return pickle.dumps(data)
 
     def _deserialize_data(self, data_bytes: bytes, data_type: str) -> Any:
@@ -135,13 +122,10 @@ class HexDictionary:
             self._save_metadata()
             print(f"Stored new entry: {data_hash} (Type: {data_type})")
         else:
-            # Data already exists, update metadata if new metadata is provided
             if metadata is not None:
                 self.entries[data_hash]['meta'].update(metadata)
                 self._save_metadata()
-                print(f"Data already exists: {data_hash}. Updated metadata.")
-            else:
-                pass # print(f"Data already exists: {data_hash}. No new metadata provided.") # Removed for less verbose output
+                # print(f"Data already exists: {data_hash}. Updated metadata.") # Removed for less verbose output
                 
         return data_hash
 
@@ -224,7 +208,7 @@ class HexDictionary:
         for data_hash in list(self.entries.keys()): # Iterate over a copy as we modify
             self.delete(data_hash)
         
-        if os.path.exists(self.metadata_file): # Use instance attribute
+        if os.path.exists(self.metadata_file):
             os.remove(self.metadata_file)
             print(f"Deleted metadata file: {self.metadata_file}")
         
@@ -237,43 +221,40 @@ class HexDictionary:
         return data_hash in self.entries
 
 if __name__ == "__main__":
-    print("--- Testing HexDictionary (Output Folder Version) ---")
+    print("--- Testing Persistent HexDictionary ---")
     
-    # Ensure a clean slate for testing with default paths
-    # This will clear the /output/ directory for this test
-    temp_dict_output = HexDictionary()
-    temp_dict_output.clear_all() 
+    # Ensure a clean slate for testing with persistent paths
+    hd_persistent = HexDictionary()
+    hd_persistent.clear_all() 
 
-    # Test with default paths (should now use /output/)
-    hd_output = HexDictionary()
-    print(f"Output HexDictionary storage: {hd_output.storage_dir}")
-    print(f"Output HexDictionary metadata: {hd_output.metadata_file}")
+    # Test with persistent paths
+    print(f"Persistent HexDictionary storage: {hd_persistent.storage_dir}")
+    print(f"Persistent HexDictionary metadata: {hd_persistent.metadata_file}")
 
-    str_data_output = "Hello, temporary HexDictionary!"
-    str_hash_output = hd_output.store(str_data_output, 'str', metadata={'source': 'test_str_output'})
-    print(f"String stored with output hash: {str_hash_output}")
+    str_data_persistent = "Hello, persistent HexDictionary!"
+    str_hash_persistent = hd_persistent.store(str_data_persistent, 'str', metadata={'source': 'test_str_persistent'})
+    print(f"String stored with persistent hash: {str_hash_persistent}")
     
     # Verify retrieval
-    retrieved_str_output = hd_output.retrieve(str_hash_output)
-    print(f"Retrieved output string: '{retrieved_str_output}' (Matches: {retrieved_str_output == str_data_output})")
-    assert retrieved_str_output == str_data_output
+    retrieved_str_persistent = hd_persistent.retrieve(str_hash_persistent)
+    print(f"Retrieved persistent string: '{retrieved_str_persistent}' (Matches: {retrieved_str_persistent == str_data_persistent})")
+    assert retrieved_str_persistent == str_data_persistent
 
-    # Test persistence (re-initializing the output HexDictionary after a run to simulate persistence)
-    print("\n--- Testing non-persistence (re-initializing output HexDictionary) ---")
-    del hd_output # Close handle
-    hd_output_reloaded = HexDictionary() # This will now initialize from /output/
-    print(f"Reloaded output HexDictionary has {len(hd_output_reloaded)} entries.")
-    # Because /output/ is cleared on each "Run Experiment", this will seem empty on subsequent runs.
-    # For a single execution, it should still show the entry unless explicitly cleared.
-    assert len(hd_output_reloaded) == 1 # Should still contain the entry for this single run
-    reloaded_str_output = hd_output_reloaded.retrieve(str_hash_output)
-    print(f"Retrieved string from reloaded output dict: '{reloaded_str_output}' (Matches: {reloaded_str_output == str_data_output})")
-    assert reloaded_str_output == str_data_output
+    # Test persistence (re-initializing)
+    print("\n--- Testing persistence (re-initializing persistent HexDictionary) ---")
+    del hd_persistent # Close handle
+    hd_persistent_reloaded = HexDictionary() # This will now initialize from /persistent_state/
+    print(f"Reloaded persistent HexDictionary has {len(hd_persistent_reloaded)} entries.")
+    # This should persist across 'Run Experiment' clicks, unlike the /output/ version.
+    assert len(hd_persistent_reloaded) == 1 
+    reloaded_str_persistent = hd_persistent_reloaded.retrieve(str_hash_persistent)
+    print(f"Retrieved string from reloaded persistent dict: '{reloaded_str_persistent}' (Matches: {reloaded_str_persistent == str_data_persistent})")
+    assert reloaded_str_persistent == str_data_persistent
 
-    # Clean up after testing (this is important for /output/ as it's cleared on next run anyways)
-    print("\n--- Clearing output HexDictionary for clean test environment ---")
-    hd_output_reloaded.clear_all()
-    assert len(hd_output_reloaded) == 0
+    # Clean up after testing, for next full test run
+    print("\n--- Clearing persistent HexDictionary for clean test environment ---")
+    hd_persistent_reloaded.clear_all()
+    assert len(hd_persistent_reloaded) == 0
     assert not os.path.exists(DEFAULT_HEX_DICT_METADATA_FILE)
-    
-    print("✅ HexDictionary (Output Folder) module test completed successfully!")
+
+    print("✅ HexDictionary (Persistent Folder) module test completed successfully!")
