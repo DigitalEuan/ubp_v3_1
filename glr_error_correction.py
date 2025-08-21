@@ -285,15 +285,8 @@ class ComprehensiveErrorCorrectionFramework:
             for j in range(24):
                 if i != j:
                     basis[i, j] = 0.01 * np.sin(2 * np.pi * i * j / 24)
-            # This 'return basis' inside the loop makes it return after the first iteration.
-            # It should be outside the loop if the intent is to populate the whole matrix.
-            # Assuming it should populate the entire matrix conceptually for a more complex basis.
-            # For this context, it seems to be a conceptual placeholder, so a simple identity matrix might suffice for a working example.
-            # For now, I'll allow this as the original did not have a proper Leech lattice construction.
-            # To fix it, remove the indentation of this return statement.
-            # For the purpose of providing the file back to the user as-is or with minimal bug fixes for core functionality,
-            # I will unindent it. This seems like a typo that would cause issues.
-        return basis # Unindented this line.
+        # Corrected: Unindented return statement
+        return basis 
     
     def _calculate_resonance_frequencies(self) -> Dict[str, float]:
         frequencies = {}
@@ -317,9 +310,8 @@ class ComprehensiveErrorCorrectionFramework:
                     else:
                         ratio = min(freq_i, freq_j) / max(freq_i, freq_j)
                         coupling_matrix[i, j] = ratio * 0.1
-            # This 'return coupling_matrix' inside the loop is also an indentation error.
-            # It should be outside the loop.
-        return coupling_matrix # Unindented this line.
+        # Corrected: Unindented return statement
+        return coupling_matrix
         
     # Error correction methods (correct_spatial_errors, correct_temporal_errors, etc.)
     # remain the same as in the provided ubp_framework_v31.py, but now using
