@@ -10,12 +10,13 @@ Realms provide contextual filters and operational parameters for OffBits
 and Bitfields.
 """
 
-from typing import Dict, Any, Tuple, Optional
+import numpy as np
+from typing import Dict, Any, Tuple, Optional, List
 from dataclasses import dataclass, field
 
 # Corrected import: UBPConstants is in system_constants, not core_v2
-from system_constants import UBPConstants
-from ubp_config import get_config, RealmConfig
+# We will primarily use constants from the UBPConfig object for consistency.
+from ubp_config import get_config, UBPConfig, RealmConfig
 
 @dataclass
 class Realm:
@@ -29,11 +30,21 @@ class Realm:
     current_crv: float = field(init=False)
     current_wavelength: float = field(init=False)
     meta: Dict[str, Any] = field(default_factory=dict)
+    _ubp_global_config: UBPConfig = field(init=False) # Store a reference to the global UBPConfig
 
     def __post_init__(self):
+        # Get the global UBPConfig instance to access system constants consistently
+        self._ubp_global_config = get_config()
+
         # Initialize current_crv and current_wavelength from config
         self.current_crv = self.config.main_crv
-        self.current_wavelength = self.config.wavelength
+        
+        # Calculate wavelength using the speed of light from the global UBPConfig
+        if self.current_crv > self._ubp_global_config.constants.EPSILON_UBP: 
+            self.current_wavelength = self._ubp_global_config.constants.SPEED_OF_LIGHT / self.current_crv
+        else:
+            self.current_wavelength = float('inf') # Or some other appropriate value
+        
         self.meta.update({
             "platonic_solid": self.config.platonic_solid,
             "coordination_number": self.config.coordination_number,
@@ -61,9 +72,9 @@ class Realm:
         CRV database selections or system conditions.
         """
         self.current_crv = new_crv
-        # Re-calculate wavelength if relevant (assuming c = lambda * nu)
-        if new_crv > UBPConstants.EPSILON_UBP: # Avoid division by zero
-            self.current_wavelength = UBPConstants.SPEED_OF_LIGHT / new_crv
+        # Re-calculate wavelength using constants from the global UBPConfig
+        if new_crv > self._ubp_global_config.constants.EPSILON_UBP: 
+            self.current_wavelength = self._ubp_global_config.constants.SPEED_OF_LIGHT / new_crv
         else:
             self.current_wavelength = float('inf') # Or some other appropriate value
         self.meta["last_crv_update_reason"] = reason
@@ -92,7 +103,7 @@ class RealmManager:
     """
     def __init__(self):
         self.realms: Dict[str, Realm] = {}
-        self.ubp_config = get_config()
+        self.ubp_config = get_config() # Get the global UBPConfig instance once
         self._initialize_realms_from_config()
         print(f"RealmManager initialized with {len(self.realms)} realms.")
 
@@ -105,6 +116,7 @@ class RealmManager:
         """Adds a new realm to the manager using its configuration."""
         if realm_config.name.lower() in self.realms:
             print(f"Warning: Realm '{realm_config.name}' already exists. Overwriting.")
+        # Pass the RealmConfig directly to Realm as its 'config' field
         self.realms[realm_config.name.lower()] = Realm(name=realm_config.name, config=realm_config)
         print(f"Added realm: {realm_config.name}")
 
