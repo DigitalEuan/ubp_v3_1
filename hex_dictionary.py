@@ -3,6 +3,7 @@ import json
 import numpy as np
 import os
 import pickle
+import gzip  # Import gzip for compression
 from typing import Any, Dict, Optional, Union
 
 # Define the default directory for PERSISTENT storage for this version of HexDictionary
@@ -14,7 +15,7 @@ class HexDictionary:
     A persistent, content-addressable key-value store.
     Keys are SHA256 hashes of the stored data.
     Supports various data types for serialization.
-    This version is specifically configured for persistent storage.
+    This version is specifically configured for persistent storage and uses gzip compression.
     """
     def __init__(self, storage_dir: str = DEFAULT_HEX_DICT_STORAGE_DIR, metadata_file: str = DEFAULT_HEX_DICT_METADATA_FILE):
         self.storage_dir = storage_dir
@@ -51,50 +52,61 @@ class HexDictionary:
 
     def _serialize_data(self, data: Any, data_type: str) -> bytes:
         """
-        Serializes data into bytes based on the specified data_type.
+        Serializes data into bytes based on the specified data_type and then compresses it.
         Supports common Python types and numpy arrays.
         """
+        serialized_bytes: bytes
         if data_type == 'bytes':
-            return data
+            serialized_bytes = data
         elif data_type == 'str':
-            return data.encode('utf-8')
+            serialized_bytes = data.encode('utf-8')
         elif data_type == 'int' or data_type == 'float':
-            return str(data).encode('utf-8')
+            serialized_bytes = str(data).encode('utf-8')
         elif data_type == 'json':
-            if isinstance(data, (dict, list)):
-                return json.dumps(data).encode('utf-8')
-            return data.encode('utf-8')
+            # Ensure JSON data is always a dict or list for proper serialization
+            if not isinstance(data, (dict, list)):
+                # If it's a string that should be JSON, try to load it first
+                try:
+                    data = json.loads(data)
+                except (json.JSONDecodeError, TypeError):
+                    pass # If it's not a valid JSON string, just serialize as a string
+            serialized_bytes = json.dumps(data).encode('utf-8')
         elif data_type == 'array' and isinstance(data, np.ndarray):
-            return pickle.dumps(data)
+            serialized_bytes = pickle.dumps(data)
         elif data_type == 'list' or data_type == 'dict':
-            return json.dumps(data).encode('utf-8')
+            serialized_bytes = json.dumps(data).encode('utf-8')
         else:
-            return pickle.dumps(data)
+            serialized_bytes = pickle.dumps(data)
+        
+        return gzip.compress(serialized_bytes)
 
     def _deserialize_data(self, data_bytes: bytes, data_type: str) -> Any:
         """
-        Deserializes bytes back into the original data type.
+        Decompresses data bytes and then deserializes them back into the original data type.
         """
+        decompressed_bytes = gzip.decompress(data_bytes)
+
         if data_type == 'bytes':
-            return data_bytes
+            return decompressed_bytes
         elif data_type == 'str':
-            return data_bytes.decode('utf-8')
+            return decompressed_bytes.decode('utf-8')
         elif data_type == 'int':
-            return int(data_bytes.decode('utf-8'))
+            return int(decompressed_bytes.decode('utf-8'))
         elif data_type == 'float':
-            return float(data_bytes.decode('utf-8'))
+            return float(decompressed_bytes.decode('utf-8'))
         elif data_type == 'json':
-            return json.loads(data_bytes.decode('utf-8'))
+            return json.loads(decompressed_bytes.decode('utf-8'))
         elif data_type == 'array':
-            return pickle.loads(data_bytes)
+            return pickle.loads(decompressed_bytes)
         elif data_type == 'list' or data_type == 'dict':
-            return json.loads(data_bytes.decode('utf-8'))
+            return json.loads(decompressed_bytes.decode('utf-8'))
         else:
-            return pickle.loads(data_bytes)
+            return pickle.loads(decompressed_bytes)
 
     def store(self, data: Any, data_type: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
         Stores data in the HexDictionary, using its SHA256 hash as the key.
+        The data is compressed before storage.
         
         Args:
             data: The data to store.
@@ -110,7 +122,9 @@ class HexDictionary:
         
         file_path = os.path.join(self.storage_dir, f"{data_hash}.bin")
         
+        # Check if the data already exists based on hash (content-addressable)
         if data_hash not in self.entries:
+            # If not, write the compressed data to file
             with open(file_path, 'wb') as f:
                 f.write(serialized_data)
             
@@ -120,24 +134,26 @@ class HexDictionary:
                 'meta': metadata if metadata is not None else {}
             }
             self._save_metadata()
-            print(f"Stored new entry: {data_hash} (Type: {data_type})")
+            # print(f"Stored new compressed entry: {data_hash} (Type: {data_type})")
         else:
+            # If data exists, just update metadata if provided
             if metadata is not None:
                 self.entries[data_hash]['meta'].update(metadata)
                 self._save_metadata()
-                # print(f"Data already exists: {data_hash}. Updated metadata.") # Removed for less verbose output
+            # print(f"Data already exists: {data_hash}. Updated metadata.") # Removed for less verbose output
                 
         return data_hash
 
     def retrieve(self, data_hash: str) -> Optional[Any]:
         """
         Retrieves data from the HexDictionary using its SHA256 hash.
+        The data is decompressed upon retrieval.
         
         Args:
             data_hash: The SHA256 hash (hex string) key of the data.
             
         Returns:
-            The deserialized data, or None if the hash is not found.
+            The deserialized and decompressed data, or None if the hash is not found.
         """
         entry_info = self.entries.get(data_hash)
         if not entry_info:
@@ -159,7 +175,7 @@ class HexDictionary:
             data = self._deserialize_data(serialized_data, data_type)
             return data
         except Exception as e:
-            print(f"Error deserializing data for hash '{data_hash}': {e}")
+            print(f"Error deserializing/decompressing data for hash '{data_hash}': {e}")
             return None
 
     def get_metadata(self, data_hash: str) -> Optional[Dict[str, Any]]:
@@ -183,21 +199,21 @@ class HexDictionary:
         """
         entry_info = self.entries.get(data_hash)
         if not entry_info:
-            print(f"Warning: Cannot delete. Data with hash '{data_hash}' not found in HexDictionary.")
+            # print(f"Warning: Cannot delete. Data with hash '{data_hash}' not found in HexDictionary.") # Removed for less verbose output
             return False
 
         file_path = entry_info['path']
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
-                print(f"Deleted file: {file_path}")
+                # print(f"Deleted file: {file_path}") # Removed for less verbose output
             except OSError as e:
                 print(f"Error deleting file {file_path}: {e}")
                 return False
         
         del self.entries[data_hash]
         self._save_metadata()
-        print(f"Deleted entry: {data_hash}")
+        # print(f"Deleted entry: {data_hash}") # Removed for less verbose output
         return True
 
     def clear_all(self):
@@ -221,7 +237,7 @@ class HexDictionary:
         return data_hash in self.entries
 
 if __name__ == "__main__":
-    print("--- Testing Persistent HexDictionary ---")
+    print("--- Testing Persistent HexDictionary with GZIP Compression ---")
     
     # Ensure a clean slate for testing with persistent paths
     hd_persistent = HexDictionary()
@@ -231,14 +247,23 @@ if __name__ == "__main__":
     print(f"Persistent HexDictionary storage: {hd_persistent.storage_dir}")
     print(f"Persistent HexDictionary metadata: {hd_persistent.metadata_file}")
 
-    str_data_persistent = "Hello, persistent HexDictionary!"
-    str_hash_persistent = hd_persistent.store(str_data_persistent, 'str', metadata={'source': 'test_str_persistent'})
+    str_data_persistent = "Hello, persistent HexDictionary with compression! " * 100 # Large string
+    str_hash_persistent = hd_persistent.store(str_data_persistent, 'str', metadata={'source': 'test_str_compressed'})
     print(f"String stored with persistent hash: {str_hash_persistent}")
     
     # Verify retrieval
     retrieved_str_persistent = hd_persistent.retrieve(str_hash_persistent)
-    print(f"Retrieved persistent string: '{retrieved_str_persistent}' (Matches: {retrieved_str_persistent == str_data_persistent})")
+    print(f"Retrieved persistent string: '{retrieved_str_persistent[:50]}...' (Matches: {retrieved_str_persistent == str_data_persistent})")
     assert retrieved_str_persistent == str_data_persistent
+
+    # Test with a NumPy array
+    numpy_data = np.random.rand(100, 100) # Large array
+    numpy_hash = hd_persistent.store(numpy_data, 'array', metadata={'source': 'test_numpy_compressed'})
+    print(f"NumPy array stored with hash: {numpy_hash}")
+
+    retrieved_numpy_data = hd_persistent.retrieve(numpy_hash)
+    print(f"Retrieved NumPy array (matches original: {np.array_equal(retrieved_numpy_data, numpy_data)})")
+    assert np.array_equal(retrieved_numpy_data, numpy_data)
 
     # Test persistence (re-initializing)
     print("\n--- Testing persistence (re-initializing persistent HexDictionary) ---")
@@ -246,10 +271,16 @@ if __name__ == "__main__":
     hd_persistent_reloaded = HexDictionary() # This will now initialize from /persistent_state/
     print(f"Reloaded persistent HexDictionary has {len(hd_persistent_reloaded)} entries.")
     # This should persist across 'Run Experiment' clicks, unlike the /output/ version.
-    assert len(hd_persistent_reloaded) == 1 
+    assert len(hd_persistent_reloaded) == 2 # 1 string + 1 numpy array
+
     reloaded_str_persistent = hd_persistent_reloaded.retrieve(str_hash_persistent)
-    print(f"Retrieved string from reloaded persistent dict: '{reloaded_str_persistent}' (Matches: {reloaded_str_persistent == str_data_persistent})")
+    print(f"Retrieved string from reloaded persistent dict: '{reloaded_str_persistent[:50]}...' (Matches: {reloaded_str_persistent == str_data_persistent})")
     assert reloaded_str_persistent == str_data_persistent
+    
+    reloaded_numpy_data = hd_persistent_reloaded.retrieve(numpy_hash)
+    print(f"Retrieved NumPy array from reloaded persistent dict (matches original: {np.array_equal(reloaded_numpy_data, numpy_data)})")
+    assert np.array_equal(reloaded_numpy_data, numpy_data)
+
 
     # Clean up after testing, for next full test run
     print("\n--- Clearing persistent HexDictionary for clean test environment ---")
@@ -257,4 +288,4 @@ if __name__ == "__main__":
     assert len(hd_persistent_reloaded) == 0
     assert not os.path.exists(DEFAULT_HEX_DICT_METADATA_FILE)
 
-    print("✅ HexDictionary (Persistent Folder) module test completed successfully!")
+    print("✅ HexDictionary (Persistent Folder with GZIP) module test completed successfully!")
