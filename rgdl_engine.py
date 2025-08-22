@@ -549,21 +549,27 @@ class RGDLEngine:
         )
     
     def _generate_htr_structure(self, resonance_freq: float, params: Dict[str, Any]) -> GeometricPrimitive:
-        """Generate HTR (Harmonic Toggle Resonance) influenced structure."""
+        """
+        Generate HTR (Harmonic Toggle Resonance) influenced structure.
+        The geometry is now explicitly influenced by the NRCI value from HTR Engine.
+        """
         harmonic_order = params.get('harmonic_order', 3)
-        toggle_frequency = params.get('toggle_frequency', 1.0)
+        nrci_value = params.get('nrci_value', 0.5) # Default NRCI if not provided
         
-        # Generate HTR pattern
+        # Use NRCI to scale the base amplitude and overall complexity/regularity of the structure
+        # Higher NRCI means more regular, coherent, or well-defined geometry
+        base_amplitude_factor = 0.5 + nrci_value * 0.5 # Scales from 0.5 to 1.0 (more defined as NRCI increases)
+        
         t = np.linspace(0, 2*np.pi, 100)
         vertices = []
         
         for i in range(harmonic_order):
-            harmonic_freq = (i + 1) * toggle_frequency
-            amplitude = 1.0 / (i + 1)  # Decreasing amplitude for higher harmonics
+            harmonic_freq = (i + 1) * resonance_freq # Use RGDL's primary resonance_freq for harmonics
+            amplitude = base_amplitude_factor / (i + 1)  # Decreasing amplitude for higher harmonics
             
             x = amplitude * np.cos(harmonic_freq * t) * np.cos(2 * np.pi * resonance_freq * t)
             y = amplitude * np.sin(harmonic_freq * t) * np.sin(2 * np.pi * resonance_freq * t)
-            z = amplitude * np.sin(2 * harmonic_freq * t)
+            z = amplitude * np.sin(2 * harmonic_freq * t) * (1.0 + (nrci_value * 0.1 * np.sin(t))) # Add NRCI influence to z-axis
             
             for j in range(len(t)):
                 vertices.append([x[j], y[j], z[j]])
@@ -573,10 +579,10 @@ class RGDLEngine:
         return GeometricPrimitive(
             primitive_type='htr_structure',
             coordinates=coordinates,
-            properties={'harmonic_order': harmonic_order, 'toggle_frequency': toggle_frequency},
+            properties={'harmonic_order': harmonic_order, 'nrci_value_influence': nrci_value},
             resonance_frequency=resonance_freq,
             coherence_level=0.0,
-            generation_method='harmonic_toggle_resonance',
+            generation_method='harmonic_toggle_resonance_nrci_influenced', # Updated method name
             stability_score=0.0,
             creation_timestamp=time.time()
         )
@@ -611,7 +617,7 @@ class RGDLEngine:
             
             for i, t_val in enumerate(t):
                 x = np.cos(t_val) * (1 + 0.2 * np.sin(crv_value * t_val))
-                y = np.sin(t_val) * (1 + 0.2 * np.cos(crv_value * t_val))
+                y = np.sin(t_val) * (1 + 0.2 * np.cos(crv_val * t_val))
                 z = 0.5 * np.sin(2 * t_val) * np.sin(crv_value * t_val)
                 vertices.append([x, y, z])
         
@@ -775,7 +781,7 @@ class RGDLEngine:
         else:
             correlation = 0.0 # Should not happen if len(coords_flat) >= 2 is checked, but a safeguard
         
-        # Convert correlation to NRCI (0 to 1 scale)
+        # Convert correlation to Non-Random Coherence Index (NRCI) (0 to 1 scale)
         nrci = (correlation + 1) / 2
         
         return min(1.0, max(0.0, nrci))
